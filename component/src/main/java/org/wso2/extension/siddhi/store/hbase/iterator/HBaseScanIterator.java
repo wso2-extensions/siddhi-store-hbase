@@ -35,6 +35,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 public class HBaseScanIterator implements RecordIterator<Object[]> {
 
@@ -43,11 +44,13 @@ public class HBaseScanIterator implements RecordIterator<Object[]> {
     private String columnFamily;
     private List<Attribute> schema;
     private Table table;
+    private Map<String, Object> parameters;
 
-    public HBaseScanIterator(String tableName, String columnFamily, HBaseCompiledCondition compiledCondition,
-                             Connection connection, List<Attribute> schema) {
-        this.tableName = tableName;
+    public HBaseScanIterator(Map<String, Object> findConditionParameterMap, String tableName, String columnFamily,
+                             HBaseCompiledCondition compiledCondition, Connection connection, List<Attribute> schema) {
         this.columnFamily = columnFamily;
+        this.parameters = findConditionParameterMap;
+        this.tableName = tableName;
         this.schema = schema;
         List<BasicCompareOperation> conditions = compiledCondition.getOperations();
         TableName finalName = TableName.valueOf(tableName);
@@ -59,9 +62,9 @@ public class HBaseScanIterator implements RecordIterator<Object[]> {
         }
         Scan scan = new Scan();
         scan.addFamily(Bytes.toBytes(columnFamily));
-        conditions.forEach(operation -> {
-            //TODO
-        });
+        conditions.forEach(operation ->
+                scan.setFilter(HBaseTableUtils.initializeFilter(operation, parameters, this.columnFamily))
+        );
         try {
             ResultScanner scanner = table.getScanner(scan);
             this.resultIterator = scanner.iterator();
