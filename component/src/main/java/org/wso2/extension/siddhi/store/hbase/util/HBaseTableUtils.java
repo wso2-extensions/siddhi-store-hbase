@@ -78,7 +78,8 @@ public class HBaseTableUtils {
         return keyString.toString();
     }
 
-    private static List<String> getKeysForParameters(List<Map<String, Object>> parameterMaps, List<Attribute> primaryKeys) {
+    public static List<String> getKeysForParameters(List<Map<String, Object>> parameterMaps,
+                                                    List<Attribute> primaryKeys) {
         List<String> keys = new ArrayList<>();
         parameterMaps.forEach(parameterMap -> {
             StringBuilder keyString = new StringBuilder();
@@ -95,7 +96,8 @@ public class HBaseTableUtils {
 
     public static List<Integer> inferPrimaryKeyOrdinals(List<Attribute> schema, Annotation primaryKeys) {
         List<String> elements = schema.stream().map(Attribute::getName).collect(Collectors.toList());
-        return primaryKeys.getElements().stream().map(Element::getKey).map(elements::indexOf).collect(Collectors.toList());
+        return primaryKeys.getElements().stream().map(Element::getKey).map(elements::indexOf)
+                .collect(Collectors.toList());
     }
 
     public static Object[] constructRecord(String rowID, String columnFamily, Result result, List<Attribute> schema) {
@@ -108,8 +110,8 @@ public class HBaseTableUtils {
             columns.add(CellUtil.cloneValue(dataCell));
         });
         if (columns.size() != schema.size()) {
-            throw new HBaseTableException("Data found on row '" + rowID + "' does not match the schema, and cannot be " +
-                    "decoded.");
+            throw new HBaseTableException("Data found on row '" + rowID + "' does not match the schema, and " +
+                    "cannot be decoded.");
         }
         return columns.stream().map(column -> decodeCell(column, schema.get(columns.indexOf(column)).getType(), rowID))
                 .toArray();
@@ -222,7 +224,8 @@ public class HBaseTableUtils {
         }
     }
 
-    private Filter initializeFilter(BasicCompareOperation operation, Map<String, Object> parameters, String columnFamily) {
+    public static Filter initializeFilter(BasicCompareOperation operation, Map<String, Object> parameters,
+                                          String columnFamily) {
         Operand operand1 = operation.getOperand1();
         Operand operand2 = operation.getOperand2();
         Filter filter;
