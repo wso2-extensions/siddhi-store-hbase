@@ -27,6 +27,7 @@ import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.Admin;
 import org.apache.hadoop.hbase.client.Connection;
 import org.apache.hadoop.hbase.client.ConnectionFactory;
+import org.apache.hadoop.hbase.client.Delete;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.Table;
 import org.apache.hadoop.hbase.util.Bytes;
@@ -119,20 +120,20 @@ public class HBaseEventTable extends AbstractRecordTable {
         if (!noKeys && allKeysEquals) {
             return new HBaseGetIterator(true);
         } else {
-            return new HBaseScanIterator(this.tableName, this.columnFamily, (HBaseCompiledCondition) compiledCondition,
+            return new HBaseScanIterator(findConditionParameterMap, this.tableName, this.columnFamily, (HBaseCompiledCondition) compiledCondition,
                     this.connection, this.schema);
         }
     }
 
     @Override
-    protected boolean contains(Map<String, Object> map, CompiledCondition compiledCondition)
+    protected boolean contains(Map<String, Object> containsConditionParameterMap, CompiledCondition compiledCondition)
             throws ConnectionUnavailableException {
         boolean allKeysEquals = ((HBaseCompiledCondition) compiledCondition).isAllKeyEquals();
         if (!noKeys && allKeysEquals) {
             return new HBaseGetIterator(false).hasNext();
         } else {
-            return new HBaseScanIterator(this.tableName, this.columnFamily, (HBaseCompiledCondition) compiledCondition,
-                    this.connection, this.schema).hasNext();
+            return new HBaseScanIterator(containsConditionParameterMap, this.tableName, this.columnFamily,
+                    (HBaseCompiledCondition) compiledCondition, this.connection, this.schema).hasNext();
         }
     }
 
@@ -143,12 +144,19 @@ public class HBaseEventTable extends AbstractRecordTable {
         if (noKeys) {
             throw new OperationNotSupportedException("The HBase Table implementation requires the specification of " +
                     "Primary Keys for delete operations. Please check your query and try again");
-        } else if (((HBaseCompiledCondition) compiledCondition).isAllKeyEquals()) {
+        } else if (!((HBaseCompiledCondition) compiledCondition).isAllKeyEquals()) {
             throw new OperationNotSupportedException("The HBase Table implementation requires that delete operations " +
                     "have all primary key entries to be present in the query in EQUALS form. " +
                     "Please check your query and try again");
         } else {
-            deleteConditionParameterMaps.forEach(map -> deleteRecords(map, compiledCondition));
+            List<Delete> deletes = HBaseTableUtils.getKeysForParameters(deleteConditionParameterMaps, primaryKeys)
+                    .stream().map(Bytes::toBytes).map(Delete::new).collect(Collectors.toList());
+            try (Table table = this.connection.getTable(TableName.valueOf(this.tableName))) {
+                table.delete(deletes);
+            } catch (IOException e) {
+                throw new HBaseTableException("Error while performing delete operations on table '"
+                        + this.tableName + "': " + e.getMessage(), e);
+            }
         }
     }
 
@@ -171,7 +179,6 @@ public class HBaseEventTable extends AbstractRecordTable {
     protected CompiledCondition compileCondition(ExpressionBuilder expressionBuilder) {
         //HBaseExpressionVisitor visitor = new HBaseExpressionVisitor();
         //TODO find a way to give no store variable type situations to Siddhi. If TRUE, then no filters. If FALSE, ignore (remove element).
-
 
         return null;
     }
@@ -270,10 +277,6 @@ public class HBaseEventTable extends AbstractRecordTable {
             throw new HBaseTableException("Error while performing insert operation on table '" + this.tableName + "': "
                     + e.getMessage(), e);
         }
-    }
-
-    private void deleteRecords(Map<String, Object> deleteConditionParameterMap, CompiledCondition compiledCondition) {
-
     }
 
     private static class BasicConfigReader implements ConfigReader {
