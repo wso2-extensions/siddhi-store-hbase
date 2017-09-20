@@ -23,8 +23,8 @@ import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.ResultScanner;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.client.Table;
-import org.apache.hadoop.hbase.filter.Filter;
 import org.apache.hadoop.hbase.util.Bytes;
+import org.wso2.extension.siddhi.store.hbase.condition.BasicCompareOperation;
 import org.wso2.extension.siddhi.store.hbase.condition.HBaseCompiledCondition;
 import org.wso2.extension.siddhi.store.hbase.exception.HBaseTableException;
 import org.wso2.extension.siddhi.store.hbase.util.HBaseTableUtils;
@@ -49,7 +49,7 @@ public class HBaseScanIterator implements RecordIterator<Object[]> {
         this.tableName = tableName;
         this.columnFamily = columnFamily;
         this.schema = schema;
-        List<Filter> conditions = compiledCondition.getConditions();
+        List<BasicCompareOperation> conditions = compiledCondition.getOperations();
         TableName finalName = TableName.valueOf(tableName);
         try {
             this.table = connection.getTable(finalName);
@@ -59,7 +59,9 @@ public class HBaseScanIterator implements RecordIterator<Object[]> {
         }
         Scan scan = new Scan();
         scan.addFamily(Bytes.toBytes(columnFamily));
-        conditions.forEach(scan::setFilter);
+        conditions.forEach(operation -> {
+            //TODO
+        });
         try {
             ResultScanner scanner = table.getScanner(scan);
             this.resultIterator = scanner.iterator();

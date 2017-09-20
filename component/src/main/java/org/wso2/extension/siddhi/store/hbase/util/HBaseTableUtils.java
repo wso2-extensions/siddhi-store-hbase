@@ -20,12 +20,21 @@ package org.wso2.extension.siddhi.store.hbase.util;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellUtil;
 import org.apache.hadoop.hbase.client.Result;
+import org.apache.hadoop.hbase.filter.CompareFilter;
+import org.apache.hadoop.hbase.filter.Filter;
+import org.apache.hadoop.hbase.filter.SingleColumnValueFilter;
 import org.apache.hadoop.hbase.util.Bytes;
+import org.wso2.extension.siddhi.store.hbase.condition.BasicCompareOperation;
+import org.wso2.extension.siddhi.store.hbase.condition.Operand;
+import org.wso2.extension.siddhi.store.hbase.condition.Operand.Constant;
+import org.wso2.extension.siddhi.store.hbase.condition.Operand.StoreVariable;
+import org.wso2.extension.siddhi.store.hbase.condition.Operand.StreamVariable;
 import org.wso2.extension.siddhi.store.hbase.exception.HBaseTableException;
 import org.wso2.siddhi.core.exception.OperationNotSupportedException;
 import org.wso2.siddhi.query.api.annotation.Annotation;
 import org.wso2.siddhi.query.api.annotation.Element;
 import org.wso2.siddhi.query.api.definition.Attribute;
+import org.wso2.siddhi.query.api.expression.condition.Compare;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -37,6 +46,7 @@ import java.io.ObjectOutput;
 import java.io.ObjectOutputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -54,27 +64,38 @@ public class HBaseTableUtils {
         return (field == null || field.trim().length() == 0);
     }
 
-    public static String generatePrimaryKeyValue(Object[] record, List<Attribute> schema, Integer[] keyOrdinals) {
-        if (keyOrdinals.length == 0) {
+    public static String generatePrimaryKeyValue(Object[] record, List<Attribute> schema, List<Integer> keyOrdinals) {
+        if (keyOrdinals.size() == 0) {
             return UUID.randomUUID().toString();
         }
         StringBuilder keyString = new StringBuilder();
         for (Integer key : keyOrdinals) {
             keyString.append(stringifyCell(schema.get(key).getType(), record[key]));
-            if (key != keyOrdinals.length - 1) {
+            if (key != keyOrdinals.size() - 1) {
                 keyString.append(KEY_SEPARATOR);
             }
-
         }
         return keyString.toString();
     }
 
-    public static Integer[] inferPrimaryKeyOrdinals(List<Attribute> schema, Annotation primaryKeys) {
-        if (primaryKeys == null) {
-            return new Integer[]{};
-        }
+    private static List<String> getKeysForParameters(List<Map<String, Object>> parameterMaps, List<Attribute> primaryKeys) {
+        List<String> keys = new ArrayList<>();
+        parameterMaps.forEach(parameterMap -> {
+            StringBuilder keyString = new StringBuilder();
+            primaryKeys.forEach(key -> {
+                keyString.append(stringifyCell(key.getType(), parameterMap.get(key.getName())));
+                if (primaryKeys.indexOf(key) != primaryKeys.size() - 1) {
+                    keyString.append(KEY_SEPARATOR);
+                }
+            });
+            keys.add(keyString.toString());
+        });
+        return keys;
+    }
+
+    public static List<Integer> inferPrimaryKeyOrdinals(List<Attribute> schema, Annotation primaryKeys) {
         List<String> elements = schema.stream().map(Attribute::getName).collect(Collectors.toList());
-        return primaryKeys.getElements().stream().map(Element::getKey).map(elements::indexOf).toArray(Integer[]::new);
+        return primaryKeys.getElements().stream().map(Element::getKey).map(elements::indexOf).collect(Collectors.toList());
     }
 
     public static Object[] constructRecord(String rowID, String columnFamily, Result result, List<Attribute> schema) {
@@ -156,7 +177,11 @@ public class HBaseTableUtils {
             out.writeObject(object);
             return bos.toByteArray();
         } catch (IOException e) {
-            throw new HBaseTableException("Error converting data for row '" + row + "' : " + e.getMessage(), e);
+            if (row == null) {
+                throw new HBaseTableException("Error encoding data : " + e.getMessage(), e);
+            } else {
+                throw new HBaseTableException("Error encoding data for row '" + row + "' : " + e.getMessage(), e);
+            }
         }
     }
 
@@ -195,6 +220,67 @@ public class HBaseTableUtils {
         } catch (IOException | ClassNotFoundException e) {
             throw new HBaseTableException("Error converting data from row '" + row + "' : " + e.getMessage(), e);
         }
+    }
+
+    private Filter initializeFilter(BasicCompareOperation operation, Map<String, Object> parameters, String columnFamily) {
+        Operand operand1 = operation.getOperand1();
+        Operand operand2 = operation.getOperand2();
+        Filter filter;
+        if (operand1 instanceof StoreVariable) {
+            byte[] conditionValue = null;
+
+            if (operand2 instanceof Constant) {
+                conditionValue = encodeCell((operand2).getType(),
+                        ((Constant) operand2).getValue(), null);
+            } else if (operand2 instanceof StreamVariable) {
+                conditionValue = encodeCell((operand2).getType(),
+                        parameters.get(((StreamVariable) operand2).getName()), null);
+            }
+            filter = new SingleColumnValueFilter(Bytes.toBytes(columnFamily),
+                    Bytes.toBytes(((StoreVariable) operand1).getName()),
+                    convertOperator(operation.getOperator()), conditionValue);
+        } else if (operand2 instanceof StoreVariable) {
+            byte[] conditionValue = null;
+            if (operand1 instanceof Constant) {
+                conditionValue = encodeCell((operand1).getType(),
+                        ((Constant) operand1).getValue(), null);
+            } else if (operand1 instanceof StreamVariable) {
+                conditionValue = encodeCell((operand1).getType(),
+                        parameters.get(((StreamVariable) operand1).getName()), null);
+            }
+            filter = new SingleColumnValueFilter(Bytes.toBytes(columnFamily),
+                    Bytes.toBytes(((StoreVariable) operand2).getName()),
+                    convertOperator(operation.getOperator()), conditionValue);
+        } else {
+            throw new HBaseTableException("The HBase table implementation requires that either one of the operands " +
+                    "used in a condition contain a table column reference. Please check your query and try again,");
+        }
+        return filter;
+    }
+
+    private static CompareFilter.CompareOp convertOperator(Compare.Operator operator) {
+        CompareFilter.CompareOp output = CompareFilter.CompareOp.NO_OP;
+        switch (operator) {
+            case LESS_THAN:
+                output = CompareFilter.CompareOp.LESS;
+                break;
+            case LESS_THAN_EQUAL:
+                output = CompareFilter.CompareOp.LESS_OR_EQUAL;
+                break;
+            case EQUAL:
+                output = CompareFilter.CompareOp.EQUAL;
+                break;
+            case GREATER_THAN:
+                output = CompareFilter.CompareOp.GREATER;
+                break;
+            case GREATER_THAN_EQUAL:
+                output = CompareFilter.CompareOp.GREATER_OR_EQUAL;
+                break;
+            case NOT_EQUAL:
+                output = CompareFilter.CompareOp.NOT_EQUAL;
+                break;
+        }
+        return output;
     }
 
     public static void closeQuietly(Closeable closeable) {

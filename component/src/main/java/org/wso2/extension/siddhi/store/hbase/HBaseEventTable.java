@@ -50,10 +50,12 @@ import org.wso2.siddhi.query.api.definition.TableDefinition;
 import org.wso2.siddhi.query.api.util.AnnotationHelper;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static org.wso2.extension.siddhi.store.hbase.util.HBaseEventTableConstants.ANNOTATION_ELEMENT_CF_NAME;
 import static org.wso2.extension.siddhi.store.hbase.util.HBaseEventTableConstants.ANNOTATION_ELEMENT_TABLE_NAME;
@@ -68,8 +70,9 @@ public class HBaseEventTable extends AbstractRecordTable {
     private ConfigReader configReader;
     private Connection connection;
     private List<Attribute> schema;
+    private List<Attribute> primaryKeys;
+    private List<Integer> primaryKeyOrdinals;
     private Annotation storeAnnotation;
-    private Integer[] primaryKeyOrdinals;
     private String tableName;
     private String columnFamily;
     private boolean noKeys;
@@ -79,14 +82,22 @@ public class HBaseEventTable extends AbstractRecordTable {
     protected void init(TableDefinition tableDefinition, ConfigReader configReader) {
         this.schema = tableDefinition.getAttributeList();
         this.storeAnnotation = AnnotationHelper.getAnnotation(ANNOTATION_STORE, tableDefinition.getAnnotations());
-        Annotation primaryKeys = AnnotationHelper.getAnnotation(SiddhiConstants.ANNOTATION_PRIMARY_KEY,
+        Annotation primaryKeyAnnotation = AnnotationHelper.getAnnotation(SiddhiConstants.ANNOTATION_PRIMARY_KEY,
                 tableDefinition.getAnnotations());
         String tableName = storeAnnotation.getElement(ANNOTATION_ELEMENT_TABLE_NAME);
         String cfName = storeAnnotation.getElement(ANNOTATION_ELEMENT_CF_NAME);
         this.tableName = HBaseTableUtils.isEmpty(tableName) ? tableDefinition.getId() : tableName;
         this.columnFamily = HBaseTableUtils.isEmpty(cfName) ? DEFAULT_CF_NAME : cfName;
-        this.noKeys = primaryKeys == null;
-        this.primaryKeyOrdinals = HBaseTableUtils.inferPrimaryKeyOrdinals(schema, primaryKeys);
+
+        if (primaryKeyAnnotation == null) {
+            this.noKeys = true;
+            this.primaryKeyOrdinals = new ArrayList<>();
+            this.primaryKeys = new ArrayList<>();
+        } else {
+            this.primaryKeyOrdinals = HBaseTableUtils.inferPrimaryKeyOrdinals(schema, primaryKeyAnnotation);
+            this.primaryKeys = schema.stream().filter(elem -> this.primaryKeyOrdinals.contains(schema.indexOf(elem)))
+                    .collect(Collectors.toList());
+        }
         if (configReader != null) {
             this.configReader = configReader;
         } else {
@@ -103,29 +114,42 @@ public class HBaseEventTable extends AbstractRecordTable {
     protected RecordIterator<Object[]> find(Map<String, Object> findConditionParameterMap,
                                             CompiledCondition compiledCondition)
             throws ConnectionUnavailableException {
-        if (noKeys) {
+
+        boolean allKeysEquals = ((HBaseCompiledCondition) compiledCondition).isReadOnlyCondition();
+        if (!noKeys && allKeysEquals) {
+            return new HBaseGetIterator(true);
+        } else {
             return new HBaseScanIterator(this.tableName, this.columnFamily, (HBaseCompiledCondition) compiledCondition,
                     this.connection, this.schema);
-        } else {
-            return new HBaseGetIterator();
         }
     }
 
     @Override
     protected boolean contains(Map<String, Object> map, CompiledCondition compiledCondition)
             throws ConnectionUnavailableException {
-        if (noKeys) {
+        boolean allKeysEquals = ((HBaseCompiledCondition) compiledCondition).isAllKeyEquals();
+        if (!noKeys && allKeysEquals) {
+            return new HBaseGetIterator(false).hasNext();
+        } else {
             return new HBaseScanIterator(this.tableName, this.columnFamily, (HBaseCompiledCondition) compiledCondition,
                     this.connection, this.schema).hasNext();
-        } else {
-            return new HBaseGetIterator().hasNext();
         }
     }
 
     @Override
-    protected void delete(List<Map<String, Object>> list, CompiledCondition compiledCondition)
+    protected void delete(List<Map<String, Object>> deleteConditionParameterMaps,
+                          CompiledCondition compiledCondition)
             throws ConnectionUnavailableException {
-
+        if (noKeys) {
+            throw new OperationNotSupportedException("The HBase Table implementation requires the specification of " +
+                    "Primary Keys for delete operations. Please check your query and try again");
+        } else if (((HBaseCompiledCondition) compiledCondition).isAllKeyEquals()) {
+            throw new OperationNotSupportedException("The HBase Table implementation requires that delete operations " +
+                    "have all primary key entries to be present in the query in EQUALS form. " +
+                    "Please check your query and try again");
+        } else {
+            deleteConditionParameterMaps.forEach(map -> deleteRecords(map, compiledCondition));
+        }
     }
 
     @Override
@@ -145,12 +169,17 @@ public class HBaseEventTable extends AbstractRecordTable {
 
     @Override
     protected CompiledCondition compileCondition(ExpressionBuilder expressionBuilder) {
+        //HBaseExpressionVisitor visitor = new HBaseExpressionVisitor();
+        //TODO find a way to give no store variable type situations to Siddhi. If TRUE, then no filters. If FALSE, ignore (remove element).
+
+
         return null;
     }
 
     @Override
     protected CompiledExpression compileSetAttribute(ExpressionBuilder expressionBuilder) {
-        return null;
+        return this.compileCondition(expressionBuilder);
+
     }
 
     @Override
@@ -188,6 +217,10 @@ public class HBaseEventTable extends AbstractRecordTable {
         }
     }
 
+    /**
+     * This method will check the HBase datastore whether the table specified by the particular Table instance, and will
+     * create it if it doesn't.
+     */
     private void checkAndCreateTable() {
         TableName table = TableName.valueOf(this.tableName);
         HTableDescriptor descriptor = new HTableDescriptor(table).addFamily(
@@ -237,6 +270,10 @@ public class HBaseEventTable extends AbstractRecordTable {
             throw new HBaseTableException("Error while performing insert operation on table '" + this.tableName + "': "
                     + e.getMessage(), e);
         }
+    }
+
+    private void deleteRecords(Map<String, Object> deleteConditionParameterMap, CompiledCondition compiledCondition) {
+
     }
 
     private static class BasicConfigReader implements ConfigReader {
