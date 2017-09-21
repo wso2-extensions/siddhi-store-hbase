@@ -49,14 +49,13 @@ public class HBaseExpressionVisitor extends BaseExpressionVisitor {
         return allKeyEquals;
     }
 
-    public List<BasicCompareOperation> gtConditions() {
+    public List<BasicCompareOperation> getConditions() {
         this.preProcessConditions();
         return compareOps;
     }
 
     private void preProcessConditions() {
 
-        this.allKeyEquals = true;
         this.compareOps.forEach(operation -> {
             Operand op1 = operation.getOperand1();
             Operand op2 = operation.getOperand2();
@@ -67,51 +66,8 @@ public class HBaseExpressionVisitor extends BaseExpressionVisitor {
                         "conditions which do not contain at lease one reference to a table column. Please check your " +
                         "query and try again.");
             }
-            //TODO todo todotodotodo todoodo doooo
+            //TODO 
         });
-    }
-
-    public void beginVisitAnd() {
-    }
-
-    public void endVisitAnd() {
-
-    }
-
-    public void beginVisitAndLeftOperand() {
-    }
-
-    public void endVisitAndLeftOperand() {
-    }
-
-    public void beginVisitAndRightOperand() {
-    }
-
-    public void endVisitAndRightOperand() {
-    }
-
-    public void beginVisitOr() {
-    }
-
-    public void endVisitOr() {
-    }
-
-    public void beginVisitOrLeftOperand() {
-    }
-
-    public void endVisitOrLeftOperand() {
-    }
-
-    public void beginVisitOrRightOperand() {
-    }
-
-    public void endVisitOrRightOperand() {
-    }
-
-    public void beginVisitNot() {
-    }
-
-    public void endVisitNot() {
     }
 
     public void beginVisitCompare(Compare.Operator operator) {
@@ -132,52 +88,10 @@ public class HBaseExpressionVisitor extends BaseExpressionVisitor {
     public void endVisitCompareRightOperand(Compare.Operator operator) {
     }
 
-    public void beginVisitIsNull(String streamId) {
-    }
-
-    public void endVisitIsNull(String streamId) {
-    }
-
-    public void beginVisitIn(String storeId) {
-    }
-
-    public void endVisitIn(String storeId) {
-    }
-
     public void beginVisitConstant(Object value, Attribute.Type type) {
     }
 
     public void endVisitConstant(Object value, Attribute.Type type) {
-    }
-
-    public void beginVisitMath(MathOperator mathOperator) {
-    }
-
-    public void endVisitMath(MathOperator mathOperator) {
-    }
-
-    public void beginVisitMathLeftOperand(MathOperator mathOperator) {
-    }
-
-    public void endVisitMathLeftOperand(MathOperator mathOperator) {
-    }
-
-    public void beginVisitMathRightOperand(MathOperator mathOperator) {
-    }
-
-    public void endVisitMathRightOperand(MathOperator mathOperator) {
-    }
-
-    public void beginVisitAttributeFunction(String namespace, String functionName) {
-    }
-
-    public void endVisitAttributeFunction(String namespace, String functionName) {
-    }
-
-    public void beginVisitParameterAttributeFunction(int index) {
-    }
-
-    public void endVisitParameterAttributeFunction(int index) {
     }
 
     public void beginVisitStreamVariable(String id, String streamId, String attributeName, Attribute.Type type) {
@@ -190,6 +104,41 @@ public class HBaseExpressionVisitor extends BaseExpressionVisitor {
     }
 
     public void endVisitStoreVariable(String storeId, String attributeName, Attribute.Type type) {
+    }
+
+    public void beginVisitOr() {
+        throw new OperationNotSupportedException("OR operations are not supported by the HBase Table " +
+                "extension. Please check your query and try again");
+    }
+
+    public void beginVisitNot() {
+        throw new OperationNotSupportedException("NOT operations are not supported by the HBase Table " +
+                "extension. Please check your query and try again");
+    }
+
+    public void beginVisitIsNull(String streamId) {
+        throw new OperationNotSupportedException("IS NULL operations are not supported by the HBase Table " +
+                "extension. Please check your query and try again");
+    }
+
+    public void beginVisitIn(String storeId) {
+        throw new OperationNotSupportedException("IN operations are not supported by the HBase Table " +
+                "extension. Please check your query and try again");
+    }
+
+    public void beginVisitMath(MathOperator mathOperator) {
+        throw new OperationNotSupportedException("Math operations are not supported by the HBase Table " +
+                "extension. Please check your query and try again");
+    }
+
+    public void beginVisitAttributeFunction(String namespace, String functionName) {
+        throw new OperationNotSupportedException("Function evaluations are not supported by the HBase Table " +
+                "extension. Please check your query and try again");
+    }
+
+    public void beginVisitParameterAttributeFunction(int index) {
+        throw new OperationNotSupportedException("Function evaluations are not supported by the HBase Table " +
+                "extension. Please check your query and try again");
     }
 
 }
