@@ -180,7 +180,8 @@ public class HBaseEventTable extends AbstractRecordTable {
     protected CompiledCondition compileCondition(ExpressionBuilder expressionBuilder) {
         HBaseExpressionVisitor visitor = new HBaseExpressionVisitor(this.primaryKeys);
         expressionBuilder.build(visitor);
-        return new HBaseCompiledCondition(visitor.gtConditions(), visitor.isReadOnlyCondition());
+        return new HBaseCompiledCondition(visitor.gtConditions(), visitor.isReadOnlyCondition(),
+                visitor.isAllKeyEquals());
     }
 
     @Override
