@@ -32,6 +32,7 @@ import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.Table;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.wso2.extension.siddhi.store.hbase.condition.HBaseCompiledCondition;
+import org.wso2.extension.siddhi.store.hbase.condition.HBaseExpressionVisitor;
 import org.wso2.extension.siddhi.store.hbase.exception.HBaseTableException;
 import org.wso2.extension.siddhi.store.hbase.iterator.HBaseGetIterator;
 import org.wso2.extension.siddhi.store.hbase.iterator.HBaseScanIterator;
@@ -120,8 +121,8 @@ public class HBaseEventTable extends AbstractRecordTable {
         if (!noKeys && allKeysEquals) {
             return new HBaseGetIterator(true);
         } else {
-            return new HBaseScanIterator(findConditionParameterMap, this.tableName, this.columnFamily, (HBaseCompiledCondition) compiledCondition,
-                    this.connection, this.schema);
+            return new HBaseScanIterator(findConditionParameterMap, this.tableName, this.columnFamily,
+                    (HBaseCompiledCondition) compiledCondition, this.connection, this.schema);
         }
     }
 
@@ -145,8 +146,8 @@ public class HBaseEventTable extends AbstractRecordTable {
             throw new OperationNotSupportedException("The HBase Table implementation requires the specification of " +
                     "Primary Keys for delete operations. Please check your query and try again");
         } else if (!((HBaseCompiledCondition) compiledCondition).isAllKeyEquals()) {
-            throw new OperationNotSupportedException("The HBase Table implementation requires that delete operations " +
-                    "have all primary key entries to be present in the query in EQUALS form. " +
+            throw new OperationNotSupportedException("The HBase Table implementation requires that delete " +
+                    "operations have all primary key entries to be present in the query in EQUALS form. " +
                     "Please check your query and try again");
         } else {
             List<Delete> deletes = HBaseTableUtils.getKeysForParameters(deleteConditionParameterMaps, primaryKeys)
@@ -177,10 +178,9 @@ public class HBaseEventTable extends AbstractRecordTable {
 
     @Override
     protected CompiledCondition compileCondition(ExpressionBuilder expressionBuilder) {
-        //HBaseExpressionVisitor visitor = new HBaseExpressionVisitor();
-        //TODO find a way to give no store variable type situations to Siddhi. If TRUE, then no filters. If FALSE, ignore (remove element).
-
-        return null;
+        HBaseExpressionVisitor visitor = new HBaseExpressionVisitor(this.primaryKeys);
+        expressionBuilder.build(visitor);
+        return new HBaseCompiledCondition(visitor.gtConditions(), visitor.isReadOnlyCondition());
     }
 
     @Override
@@ -225,8 +225,8 @@ public class HBaseEventTable extends AbstractRecordTable {
     }
 
     /**
-     * This method will check the HBase datastore whether the table specified by the particular Table instance, and will
-     * create it if it doesn't.
+     * This method will check the HBase instance whether the table specified by the particular Table instance,
+     * and will create it if it doesn't.
      */
     private void checkAndCreateTable() {
         TableName table = TableName.valueOf(this.tableName);
@@ -251,8 +251,8 @@ public class HBaseEventTable extends AbstractRecordTable {
     /**
      * Method which will perform an insertion operation for a given record, without updating the record's values
      * if it already exists.
-     * Note that this method has to do an RPC call per record due to HBase API limitations. Hence, it is not recommended for high
-     * throughput operations.
+     * Note that this method has to do an RPC call per record due to HBase API limitations. Hence, it is not
+     * recommended for high throughput operations.
      *
      * @param record the record to be inserted into the HBase cluster.
      */
