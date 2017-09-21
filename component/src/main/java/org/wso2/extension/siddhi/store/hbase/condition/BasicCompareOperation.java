@@ -25,6 +25,12 @@ public class BasicCompareOperation {
     private Operand operand1;
     private Operand operand2;
 
+    public BasicCompareOperation() {
+        this.operand1 = null;
+        this.operand2 = null;
+        this.operator = null;
+    }
+
     public Compare.Operator getOperator() {
         return operator;
     }
@@ -42,12 +48,16 @@ public class BasicCompareOperation {
     }
 
     public Operand getOperand2() {
-        if(operand1 instanceof Operand.StreamVariable)  return operand1;
+        if (operand1 instanceof Operand.StreamVariable) return operand1;
         return operand2;
     }
 
     public void setOperand2(Operand operand2) {
         this.operand2 = operand2;
+    }
+
+    public boolean isInvalid() {
+        return ((this.operand1 == null) || (this.operand2 == null) || (this.operator == null));
     }
 
 }

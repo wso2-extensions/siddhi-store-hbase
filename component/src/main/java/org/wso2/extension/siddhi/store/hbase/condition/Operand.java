@@ -20,50 +20,48 @@ package org.wso2.extension.siddhi.store.hbase.condition;
 import org.wso2.siddhi.query.api.definition.Attribute;
 
 public abstract class Operand {
-    private Attribute.Type type;
+    protected Attribute.Type type;
 
     public Attribute.Type getType() {
         return type;
     }
 
-    public void setType(Attribute.Type type) {
-        this.type = type;
-    }
-
-    public class StreamVariable extends Operand {
+    public static class StreamVariable extends Operand {
         private String name;
+
+        StreamVariable(String name, Attribute.Type type) {
+            this.name = name;
+            this.type = type;
+        }
 
         public String getName() {
             return name;
         }
-
-        public void setName(String name) {
-            this.name = name;
-        }
     }
 
-    public class Constant extends Operand {
+    public static class Constant extends Operand {
         private Object value;
+
+        Constant(Object value, Attribute.Type type) {
+            this.value = value;
+            this.type = type;
+        }
 
         public Object getValue() {
             return value;
         }
-
-        public void setValue(Object value) {
-            this.value = value;
-        }
     }
 
-    public class StoreVariable extends Operand {
+    public static class StoreVariable extends Operand {
         private String name;
+
+        StoreVariable(String name, Attribute.Type type) {
+            this.name = name;
+            this.type = type;
+        }
 
         public String getName() {
             return name;
         }
-
-        public void setName(String name) {
-            this.name = name;
-        }
-
     }
 }
