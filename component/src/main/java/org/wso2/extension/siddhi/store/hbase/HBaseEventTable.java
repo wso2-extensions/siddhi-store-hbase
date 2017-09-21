@@ -28,13 +28,15 @@ import org.apache.hadoop.hbase.client.Admin;
 import org.apache.hadoop.hbase.client.Connection;
 import org.apache.hadoop.hbase.client.ConnectionFactory;
 import org.apache.hadoop.hbase.client.Delete;
+import org.apache.hadoop.hbase.client.Get;
 import org.apache.hadoop.hbase.client.Put;
+import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.Table;
 import org.apache.hadoop.hbase.util.Bytes;
+import org.wso2.extension.siddhi.store.hbase.condition.BasicCompareOperation;
 import org.wso2.extension.siddhi.store.hbase.condition.HBaseCompiledCondition;
 import org.wso2.extension.siddhi.store.hbase.condition.HBaseExpressionVisitor;
 import org.wso2.extension.siddhi.store.hbase.exception.HBaseTableException;
-import org.wso2.extension.siddhi.store.hbase.iterator.HBaseGetIterator;
 import org.wso2.extension.siddhi.store.hbase.iterator.HBaseScanIterator;
 import org.wso2.extension.siddhi.store.hbase.util.HBaseTableUtils;
 import org.wso2.siddhi.core.exception.ConnectionUnavailableException;
@@ -53,7 +55,7 @@ import org.wso2.siddhi.query.api.util.AnnotationHelper;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -62,14 +64,12 @@ import java.util.stream.Collectors;
 import static org.wso2.extension.siddhi.store.hbase.util.HBaseEventTableConstants.ANNOTATION_ELEMENT_CF_NAME;
 import static org.wso2.extension.siddhi.store.hbase.util.HBaseEventTableConstants.ANNOTATION_ELEMENT_TABLE_NAME;
 import static org.wso2.extension.siddhi.store.hbase.util.HBaseEventTableConstants.DEFAULT_CF_NAME;
-import static org.wso2.extension.siddhi.store.hbase.util.HBaseEventTableConstants.HBASE_BATCH_SIZE;
 import static org.wso2.siddhi.core.util.SiddhiConstants.ANNOTATION_STORE;
 
 public class HBaseEventTable extends AbstractRecordTable {
 
     private static final Log log = LogFactory.getLog(HBaseEventTable.class);
 
-    private ConfigReader configReader;
     private Connection connection;
     private List<Attribute> schema;
     private List<Attribute> primaryKeys;
@@ -78,7 +78,6 @@ public class HBaseEventTable extends AbstractRecordTable {
     private String tableName;
     private String columnFamily;
     private boolean noKeys;
-    private int batchSize;
 
     @Override
     protected void init(TableDefinition tableDefinition, ConfigReader configReader) {
@@ -100,11 +99,6 @@ public class HBaseEventTable extends AbstractRecordTable {
             this.primaryKeys = schema.stream().filter(elem -> this.primaryKeyOrdinals.contains(schema.indexOf(elem)))
                     .collect(Collectors.toList());
         }
-        if (configReader != null) {
-            this.configReader = configReader;
-        } else {
-            this.configReader = new BasicConfigReader();
-        }
     }
 
     @Override
@@ -116,10 +110,9 @@ public class HBaseEventTable extends AbstractRecordTable {
     protected RecordIterator<Object[]> find(Map<String, Object> findConditionParameterMap,
                                             CompiledCondition compiledCondition)
             throws ConnectionUnavailableException {
-
-        boolean allKeysEquals = ((HBaseCompiledCondition) compiledCondition).isReadOnlyCondition();
+        boolean allKeysEquals = ((HBaseCompiledCondition) compiledCondition).isAllKeyEquals();
         if (!noKeys && allKeysEquals) {
-            return new HBaseGetIterator(true);
+            return this.readSingleRecord(findConditionParameterMap, compiledCondition);
         } else {
             return new HBaseScanIterator(findConditionParameterMap, this.tableName, this.columnFamily,
                     (HBaseCompiledCondition) compiledCondition, this.connection, this.schema);
@@ -131,7 +124,7 @@ public class HBaseEventTable extends AbstractRecordTable {
             throws ConnectionUnavailableException {
         boolean allKeysEquals = ((HBaseCompiledCondition) compiledCondition).isAllKeyEquals();
         if (!noKeys && allKeysEquals) {
-            return new HBaseGetIterator(false).hasNext();
+            return this.readSingleRecord(containsConditionParameterMap, compiledCondition).hasNext();
         } else {
             return new HBaseScanIterator(containsConditionParameterMap, this.tableName, this.columnFamily,
                     (HBaseCompiledCondition) compiledCondition, this.connection, this.schema).hasNext();
@@ -143,10 +136,10 @@ public class HBaseEventTable extends AbstractRecordTable {
                           CompiledCondition compiledCondition)
             throws ConnectionUnavailableException {
         if (noKeys) {
-            throw new OperationNotSupportedException("The HBase Table implementation requires the specification of " +
+            throw new OperationNotSupportedException("The HBase Table extension requires the specification of " +
                     "Primary Keys for delete operations. Please check your query and try again");
         } else if (!((HBaseCompiledCondition) compiledCondition).isAllKeyEquals()) {
-            throw new OperationNotSupportedException("The HBase Table implementation requires that delete " +
+            throw new OperationNotSupportedException("The HBase Table extension requires that delete " +
                     "operations have all primary key entries to be present in the query in EQUALS form. " +
                     "Please check your query and try again");
         } else {
@@ -166,21 +159,23 @@ public class HBaseEventTable extends AbstractRecordTable {
             list, Map<String, CompiledExpression> map, List<Map<String, Object>> list1)
             throws ConnectionUnavailableException {
         throw new OperationNotSupportedException("Record update operations are not supported by the HBase Table " +
-                "implementation. Please check your query and try again");
+                "extension. Please check your query and try again");
     }
 
     @Override
-    protected void updateOrAdd(CompiledCondition compiledCondition, List<Map<String, Object>> list,
-                               Map<String, CompiledExpression> map, List<Map<String, Object>> list1,
-                               List<Object[]> list2) throws ConnectionUnavailableException {
-
+    protected void updateOrAdd(CompiledCondition compiledCondition,
+                               List<Map<String, Object>> updateConditionParameterMaps,
+                               Map<String, CompiledExpression> updateSetExpressions,
+                               List<Map<String, Object>> updateSetParameterMaps, List<Object[]> addingRecords)
+            throws ConnectionUnavailableException {
+        //TODO
     }
 
     @Override
     protected CompiledCondition compileCondition(ExpressionBuilder expressionBuilder) {
         HBaseExpressionVisitor visitor = new HBaseExpressionVisitor(this.primaryKeys);
         expressionBuilder.build(visitor);
-        return new HBaseCompiledCondition(visitor.gtConditions(), visitor.isReadOnlyCondition(),
+        return new HBaseCompiledCondition(visitor.getConditions(), visitor.isReadOnlyCondition(),
                 visitor.isAllKeyEquals());
     }
 
@@ -206,7 +201,6 @@ public class HBaseEventTable extends AbstractRecordTable {
             throw new ConnectionUnavailableException("Failed to initialize store for table name '" +
                     this.tableName + "': " + e.getMessage(), e);
         }
-        this.batchSize = Integer.parseInt(this.configReader.readConfig(HBASE_BATCH_SIZE, "5000"));
         this.checkAndCreateTable();
     }
 
@@ -280,15 +274,57 @@ public class HBaseEventTable extends AbstractRecordTable {
         }
     }
 
-    private static class BasicConfigReader implements ConfigReader {
-        @Override
-        public String readConfig(String name, String defaultValue) {
-            return defaultValue;
+    private RecordIterator<Object[]> readSingleRecord(Map<String, Object> conditionParameterMap,
+                                                      CompiledCondition compiledCondition) {
+        Table table;
+        List<Object[]> records = new ArrayList<>();
+        List<BasicCompareOperation> operations = ((HBaseCompiledCondition) compiledCondition).getOperations();
+        String rowID = HBaseTableUtils.inferKeyFromCondition(conditionParameterMap, this.primaryKeys);
+        Get get = new Get(Bytes.toBytes(rowID));
+        operations.forEach(operation -> get.setFilter(HBaseTableUtils.initializeFilter(operation, conditionParameterMap, this.columnFamily)));
+        try {
+            table = this.connection.getTable(TableName.valueOf(this.tableName));
+            Result result = table.get(get);
+            records.add(HBaseTableUtils.constructRecord(rowID, this.columnFamily, result, this.schema));
+        } catch (IOException e) {
+            if (log.isDebugEnabled()) {
+                log.debug("Error while performing insert operation on table '" + this.tableName + "' on row '"
+                        + rowID + "' :" + e.getMessage());
+            }
+            throw new HBaseTableException("Error while performing insert operation on table '" + this.tableName + "': "
+                    + e.getMessage(), e);
+        }
+        return new HBaseGetIterator(records.iterator(), table);
+    }
+
+    private static class HBaseGetIterator implements RecordIterator<Object[]> {
+
+        private Iterator<Object[]> internalIterator;
+        Table table;
+
+        HBaseGetIterator(Iterator<Object[]> iterator, Table table) {
+            this.internalIterator = iterator;
+            this.table = table;
         }
 
         @Override
-        public Map<String, String> getAllConfigs() {
-            return new HashMap<>();
+        public void close() throws IOException {
+            HBaseTableUtils.closeQuietly(table);
+        }
+
+        @Override
+        public boolean hasNext() {
+            return this.internalIterator.hasNext();
+        }
+
+        @Override
+        public Object[] next() {
+            return this.internalIterator.next();
+        }
+
+        @Override
+        public void remove() {
+            //Do nothing
         }
     }
 
