@@ -103,7 +103,11 @@ public class HBaseEventTable extends AbstractRecordTable {
 
     @Override
     protected void add(List<Object[]> records) throws ConnectionUnavailableException {
-        records.forEach(this::insertRecord);
+        if (this.noKeys) {
+            this.putRecords(records);
+        } else {
+            records.forEach(this::checkAndPutRecord);
+        }
     }
 
     @Override
@@ -138,8 +142,11 @@ public class HBaseEventTable extends AbstractRecordTable {
         if (noKeys) {
             throw new OperationNotSupportedException("The HBase Table extension requires the specification of " +
                     "Primary Keys for delete operations. Please check your query and try again");
+        } else if (!((HBaseCompiledCondition) compiledCondition).isReadOnlyCondition()) {
+            throw new OperationNotSupportedException("The HBase Table extension supports comparison operations for " +
+                    "record read operations only. Please check your query and try again.");
         } else if (!((HBaseCompiledCondition) compiledCondition).isAllKeyEquals()) {
-            throw new OperationNotSupportedException("The HBase Table extension requires that delete " +
+            throw new OperationNotSupportedException("The HBase Table extension requires that DELETE " +
                     "operations have all primary key entries to be present in the query in EQUALS form. " +
                     "Please check your query and try again");
         } else {
@@ -155,11 +162,11 @@ public class HBaseEventTable extends AbstractRecordTable {
     }
 
     @Override
-    protected void update(CompiledCondition compiledCondition, List<Map<String, Object>>
-            list, Map<String, CompiledExpression> map, List<Map<String, Object>> list1)
+    protected void update(CompiledCondition compiledCondition, List<Map<String, Object>> updateConditionParameterMaps,
+                          Map<String, CompiledExpression> updateSetExpressions,
+                          List<Map<String, Object>> updateValues)
             throws ConnectionUnavailableException {
-        throw new OperationNotSupportedException("Record update operations are not supported by the HBase Table " +
-                "extension. Please check your query and try again");
+        this.checkAndUpdateRecords(compiledCondition, updateConditionParameterMaps, updateValues);
     }
 
     @Override
@@ -168,7 +175,16 @@ public class HBaseEventTable extends AbstractRecordTable {
                                Map<String, CompiledExpression> updateSetExpressions,
                                List<Map<String, Object>> updateSetParameterMaps, List<Object[]> addingRecords)
             throws ConnectionUnavailableException {
-        //TODO
+        if (((HBaseCompiledCondition) compiledCondition).isAllKeyEquals()) {
+            this.putRecords(addingRecords);
+        } else if (!((HBaseCompiledCondition) compiledCondition).isReadOnlyCondition()) {
+            throw new OperationNotSupportedException("The HBase Table extension supports comparison operations for " +
+                    "record read operations only. Please check your query and try again.");
+        } else {
+            throw new OperationNotSupportedException("The HBase Table extension requires that UPDATE OR INSERT " +
+                    "operations have all primary key entries to be present in the query in EQUALS form. " +
+                    "Please check your query and try again");
+        }
     }
 
     @Override
@@ -181,8 +197,8 @@ public class HBaseEventTable extends AbstractRecordTable {
 
     @Override
     protected CompiledExpression compileSetAttribute(ExpressionBuilder expressionBuilder) {
-        return this.compileCondition(expressionBuilder);
-
+        throw new OperationNotSupportedException("SET operations are not supported by the HBase Table extension. " +
+                "Please check your query and try again");
     }
 
     @Override
@@ -251,7 +267,7 @@ public class HBaseEventTable extends AbstractRecordTable {
      *
      * @param record the record to be inserted into the HBase cluster.
      */
-    private void insertRecord(Object[] record) {
+    private void checkAndPutRecord(Object[] record) {
         String rowID = HBaseTableUtils.generatePrimaryKeyValue(record, this.schema, this.primaryKeyOrdinals);
         Put put = new Put(Bytes.toBytes(rowID));
         byte[] firstColumn = Bytes.toBytes(this.schema.get(0).getName());
@@ -274,6 +290,75 @@ public class HBaseEventTable extends AbstractRecordTable {
         }
     }
 
+    private void putRecords(List<Object[]> records) {
+        List<Put> puts = records.stream().map(record -> {
+            String rowID = HBaseTableUtils.generatePrimaryKeyValue(record, this.schema, this.primaryKeyOrdinals);
+            Put put = new Put(Bytes.toBytes(rowID));
+            for (int i = 0; i < this.schema.size(); i++) {
+                Attribute column = this.schema.get(i);
+                //method: CF, qualifier, value.
+                put.addColumn(Bytes.toBytes(this.columnFamily), Bytes.toBytes(column.getName()),
+                        HBaseTableUtils.encodeCell(column.getType(), record[i], rowID));
+            }
+            return put;
+        }).collect(Collectors.toList());
+        try (Table table = this.connection.getTable(TableName.valueOf(this.tableName))) {
+            table.put(puts);
+        } catch (IOException e) {
+            throw new HBaseTableException("Error while performing insert/update operation on table '" +
+                    this.tableName + "': " + e.getMessage(), e);
+        }
+    }
+
+    private void checkAndUpdateRecords(CompiledCondition compiledCondition,
+                                       List<Map<String, Object>> updateConditionParameterMaps,
+                                       List<Map<String, Object>> updateValues) {
+        List<Put> puts = new ArrayList<>();
+        if (((HBaseCompiledCondition) compiledCondition).isAllKeyEquals()) {
+            while (updateConditionParameterMaps.iterator().hasNext() && updateValues.iterator().hasNext()) {
+                Map<String, Object> conditionParameterMap = updateConditionParameterMaps.iterator().next();
+                Map<String, Object> updateColumnValues = updateValues.iterator().next();
+                String rowKey = HBaseTableUtils.inferKeyFromCondition(conditionParameterMap, this.primaryKeys);
+                if (this.checkSingleRecord(conditionParameterMap)) {
+                    Put put = new Put(Bytes.toBytes(rowKey));
+                    for (int i = 0; i < this.schema.size(); i++) {
+                        Attribute attribute = this.schema.get(i);
+                        if (updateColumnValues.containsKey(attribute.getName())) {
+                            // the incoming update data contains the column's new value.
+                            if (this.primaryKeyOrdinals.contains(i)) {
+                                /*let the user know it's not possible to change values defined as primary keys since
+                                it could mean changing the row ID.*/
+                                throw new OperationNotSupportedException("The HBase Table extension does not support" +
+                                        " updating of a record's primary key. Please check your query and try again");
+                            } else {
+                                put.addColumn(Bytes.toBytes(this.columnFamily), Bytes.toBytes(attribute.getName()),
+                                        HBaseTableUtils.encodeCell(attribute.getType(),
+                                                updateColumnValues.get(attribute.getName()), rowKey));
+                            }
+                        }
+                    }
+                    puts.add(put);
+                } else {
+                    if (log.isDebugEnabled()) {
+                        log.debug("a record with key '" + rowKey + "' fulfilling the criteria does not exist on " +
+                                "table " + this.tableName + ", hence returning without changes");
+                    }
+                    return;
+                }
+            }
+        } else {
+            throw new OperationNotSupportedException("The HBase Table extension requires that UPDATE " +
+                    "operations have all primary key entries to be present in the query in EQUALS form. " +
+                    "Please check your query and try again");
+        }
+        try (Table table = this.connection.getTable(TableName.valueOf(this.tableName))) {
+            table.put(puts);
+        } catch (IOException e) {
+            throw new HBaseTableException("Error while performing insert/update operation on table '" +
+                    this.tableName + "': " + e.getMessage(), e);
+        }
+    }
+
     private RecordIterator<Object[]> readSingleRecord(Map<String, Object> conditionParameterMap,
                                                       CompiledCondition compiledCondition) {
         Table table;
@@ -288,13 +373,24 @@ public class HBaseEventTable extends AbstractRecordTable {
             records.add(HBaseTableUtils.constructRecord(rowID, this.columnFamily, result, this.schema));
         } catch (IOException e) {
             if (log.isDebugEnabled()) {
-                log.debug("Error while performing insert operation on table '" + this.tableName + "' on row '"
+                log.debug("Error while performing read operation on table '" + this.tableName + "' on row '"
                         + rowID + "' :" + e.getMessage());
             }
-            throw new HBaseTableException("Error while performing insert operation on table '" + this.tableName + "': "
+            throw new HBaseTableException("Error while performing read operation on table '" + this.tableName + "': "
                     + e.getMessage(), e);
         }
         return new HBaseGetIterator(records.iterator(), table);
+    }
+
+    private boolean checkSingleRecord(Map<String, Object> conditionParameterMap) {
+        Get get = new Get(Bytes.toBytes(HBaseTableUtils.inferKeyFromCondition(conditionParameterMap,
+                this.primaryKeys)));
+        try (Table table = this.connection.getTable(TableName.valueOf(this.tableName))) {
+            return table.exists(get);
+        } catch (IOException e) {
+            throw new HBaseTableException("Error while performing check operation on table '" + this.tableName + "': "
+                    + e.getMessage(), e);
+        }
     }
 
     private static class HBaseGetIterator implements RecordIterator<Object[]> {

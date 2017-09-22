@@ -27,7 +27,6 @@ public class HBaseCompiledCondition implements CompiledCondition {
     private List<BasicCompareOperation> operations;
 
     private boolean readOnlyCondition;
-
     private boolean allKeyEquals;
 
     public HBaseCompiledCondition(List<BasicCompareOperation> conditions, boolean readOnlyCondition,
