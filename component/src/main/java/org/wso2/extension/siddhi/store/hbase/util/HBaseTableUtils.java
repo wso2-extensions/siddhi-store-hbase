@@ -82,16 +82,20 @@ public class HBaseTableUtils {
                                                     List<Attribute> primaryKeys) {
         List<String> keys = new ArrayList<>();
         parameterMaps.forEach(parameterMap -> {
-            StringBuilder keyString = new StringBuilder();
-            primaryKeys.forEach(key -> {
-                keyString.append(stringifyCell(key.getType(), parameterMap.get(key.getName())));
-                if (primaryKeys.indexOf(key) != primaryKeys.size() - 1) {
-                    keyString.append(KEY_SEPARATOR);
-                }
-            });
-            keys.add(keyString.toString());
+            keys.add(inferKeyFromCondition(parameterMap, primaryKeys));
         });
         return keys;
+    }
+
+    public static String inferKeyFromCondition(Map<String, Object> parameterMap, List<Attribute> primaryKeys) {
+        StringBuilder keyString = new StringBuilder();
+        primaryKeys.forEach(key -> {
+            keyString.append(stringifyCell(key.getType(), parameterMap.get(key.getName())));
+            if (primaryKeys.indexOf(key) != primaryKeys.size() - 1) {
+                keyString.append(KEY_SEPARATOR);
+            }
+        });
+        return keyString.toString();
     }
 
     public static List<Integer> inferPrimaryKeyOrdinals(List<Attribute> schema, Annotation primaryKeys) {
