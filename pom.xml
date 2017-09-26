@@ -41,6 +41,7 @@
             </activation>
             <modules>
                 <module>component</module>
+                <module>coverage-reports</module>
             </modules>
         </profile>
     </profiles>
@@ -54,6 +55,8 @@
         <commons.lang3.version>3.3.2</commons.lang3.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <io.fabric8.version>0.20.0</io.fabric8.version>
+        <org.jacoco.ant.version>0.7.5.201505241946</org.jacoco.ant.version>
+        <jacoco.plugin.version>0.7.5.201505241946</jacoco.plugin.version>
     </properties>
 
     <scm>
@@ -184,6 +187,11 @@
         <pluginManagement>
             <plugins>
                 <plugin>
+                    <groupId>org.jacoco</groupId>
+                    <artifactId>jacoco-maven-plugin</artifactId>
+                    <version>${jacoco.plugin.version}</version>
+                </plugin>
+                <plugin>
                     <groupId>org.apache.felix</groupId>
                     <artifactId>maven-scr-plugin</artifactId>
                     <version>1.7.2</version>
@@ -218,20 +226,6 @@
                             </goals>
                         </execution>
                     </executions>
-                </plugin>
-                <plugin>
-                    <artifactId>maven-assembly-plugin</artifactId>
-                    <version>2.2-beta-2</version>
-                </plugin>
-                <plugin>
-                    <groupId>org.apache.maven.plugins</groupId>
-                    <artifactId>maven-project-info-reports-plugin</artifactId>
-                    <version>2.4</version>
-                </plugin>
-                <plugin>
-                    <groupId>io.fabric8</groupId>
-                    <artifactId>docker-maven-plugin</artifactId>
-                    <version>${io.fabric8.version}</version>
                 </plugin>
             </plugins>
         </pluginManagement>
