@@ -64,11 +64,13 @@ public class HBaseExpressionVisitor extends BaseExpressionVisitor {
         for (BasicCompareOperation operation : this.compareOps) {
             if (operation.getOperand1() instanceof Operand.StoreVariable) {
                 if (operation.getOperator() == Compare.Operator.EQUAL) {
-                    equalsWithStoreVariables.add(((Operand.StoreVariable) operation.getOperand1()).getName());
+                    equalsWithStoreVariables.add(
+                            ((Operand.StoreVariable) operation.getOperand1()).getName().toLowerCase());
                 }
             } else if (operation.getOperand2() instanceof Operand.StoreVariable) {
                 if (operation.getOperator() == Compare.Operator.EQUAL) {
-                    equalsWithStoreVariables.add(((Operand.StoreVariable) operation.getOperand2()).getName());
+                    equalsWithStoreVariables.add(
+                            ((Operand.StoreVariable) operation.getOperand2()).getName().toLowerCase());
                 }
             } else {
                 throw new OperationNotSupportedException("The HBase Table implementation does not support " +
