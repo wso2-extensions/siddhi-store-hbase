@@ -19,6 +19,10 @@ package org.wso2.extension.siddhi.store.hbase.condition;
 
 import org.wso2.siddhi.query.api.expression.condition.Compare;
 
+/**
+ * Class that denotes a simple compare operation that can be undertaken by the HBase instance. This contains a couple
+ * of operands and one operator.
+ */
 public class BasicCompareOperation {
 
     private Compare.Operator operator;
@@ -48,7 +52,9 @@ public class BasicCompareOperation {
     }
 
     public Operand getOperand2() {
-        if (operand1 instanceof Operand.StreamVariable) return operand1;
+        if (operand1 instanceof Operand.StreamVariable) {
+            return operand1;
+        }
         return operand2;
     }
 

@@ -53,6 +53,9 @@ import java.util.stream.Collectors;
 
 import static org.wso2.extension.siddhi.store.hbase.util.HBaseEventTableConstants.KEY_SEPARATOR;
 
+/**
+ * Class for holding various utility methods required by by the HBase table implementation.
+ */
 public class HBaseTableUtils {
 
     /**
@@ -101,8 +104,15 @@ public class HBaseTableUtils {
 
     public static List<Integer> inferPrimaryKeyOrdinals(List<Attribute> schema, Annotation primaryKeys) {
         List<String> elements = schema.stream().map(Attribute::getName).collect(Collectors.toList());
-        return primaryKeys.getElements().stream().map(Element::getKey).map(elements::indexOf)
-                .collect(Collectors.toList());
+        return primaryKeys.getElements().stream().map(Element::getValue).map(candidateKey -> {
+            int idx = elements.indexOf(candidateKey);
+            if (idx == -1) {
+                throw new HBaseTableException("Specified primary key '" + candidateKey + "' does not exist as " +
+                        "part of the table schema. " +
+                        "Please check your query and try again.");
+            }
+            return idx;
+        }).collect(Collectors.toList());
     }
 
     public static Object[] constructRecord(String rowID, String columnFamily, Result result, List<Attribute> schema) {
@@ -230,7 +240,7 @@ public class HBaseTableUtils {
     }
 
     private static Filter initializeFilter(BasicCompareOperation operation, Map<String, Object> parameters,
-                                          String columnFamily) {
+                                           String columnFamily) {
         Operand operand1 = operation.getOperand1();
         Operand operand2 = operation.getOperand2();
         Filter filter;
@@ -266,10 +276,11 @@ public class HBaseTableUtils {
         return filter;
     }
 
-    public static FilterList convertConditionsToFilters(List<BasicCompareOperation> operations, Map<String, Object> parameters,
-                                                        String columnFamily) {
+    public static FilterList convertConditionsToFilters(List<BasicCompareOperation> operations,
+                                                        Map<String, Object> parameters, String columnFamily) {
         FilterList filterList = new FilterList();
-        operations.stream().map(operation -> initializeFilter(operation, parameters, columnFamily)).forEach(filterList::addFilter);
+        operations.stream().map(operation -> initializeFilter(operation, parameters, columnFamily))
+                .forEach(filterList::addFilter);
         return filterList;
     }
 

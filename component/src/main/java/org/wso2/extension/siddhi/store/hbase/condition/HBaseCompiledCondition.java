@@ -22,6 +22,11 @@ import org.wso2.siddhi.core.util.collection.operator.CompiledCondition;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * Implementation class of {@link CompiledCondition} corresponding to the HBase Event Table.
+ * Maintains the conditions returned by the ExpressionVisitor as well as as a set of boolean values for inferring
+ * states to be used at runtime.
+ */
 public class HBaseCompiledCondition implements CompiledCondition {
 
     private List<BasicCompareOperation> operations;

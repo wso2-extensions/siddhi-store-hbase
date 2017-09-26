@@ -27,6 +27,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * Class which is used by the Siddhi runtime for instructions on converting the SiddhiQL condition to the condition
+ * format understood by the underlying HBase data store.
+ */
 public class HBaseExpressionVisitor extends BaseExpressionVisitor {
 
     private boolean readOnlyCondition;

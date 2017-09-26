@@ -19,13 +19,20 @@ package org.wso2.extension.siddhi.store.hbase.condition;
 
 import org.wso2.siddhi.query.api.definition.Attribute;
 
+/**
+ * This abstract class acts as a template for the 3 different kinds of variables that can be encountered at
+ * condition evaluation. All kinds will contain a variable type.
+ */
 public abstract class Operand {
-    protected Attribute.Type type;
+    Attribute.Type type;
 
     public Attribute.Type getType() {
         return type;
     }
 
+    /**
+     * Class denoting a stream variable, which will contain a type and a name.
+     */
     public static class StreamVariable extends Operand {
         private String name;
 
@@ -39,6 +46,9 @@ public abstract class Operand {
         }
     }
 
+    /**
+     * Class denoting a constant, which will have a type and a value.
+     */
     public static class Constant extends Operand {
         private Object value;
 
@@ -52,6 +62,10 @@ public abstract class Operand {
         }
     }
 
+    /**
+     * Class denoting a store variable, which will have a type and a name. This is kept separate from a stream variable
+     * even though they contain the same fields because there are cases where we need to distinguish between the two.
+     */
     public static class StoreVariable extends Operand {
         private String name;
 

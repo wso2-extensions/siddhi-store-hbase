@@ -37,6 +37,11 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * A closeable iterator which is responsible for retrieving values from the HBase instance when there are no primary
+ * keys specified in the Siddhi table definition. In this case, a  normal sequential scan is initiated, with the
+ * conditions specified converted into HBase Filters.
+ */
 public class HBaseScanIterator implements RecordIterator<Object[]> {
 
     private Iterator<Result> resultIterator = Collections.emptyIterator();
@@ -89,11 +94,13 @@ public class HBaseScanIterator implements RecordIterator<Object[]> {
         }
         Result currentResult = this.resultIterator.next();
         byte[] rowId = currentResult.getRow();
-        Object[] record = HBaseTableUtils.constructRecord(Bytes.toString(rowId), this.columnFamily, currentResult, this.schema);
+        Object[] record = HBaseTableUtils.constructRecord(Bytes.toString(rowId), this.columnFamily, currentResult,
+                this.schema);
         if (record != null && record.length > 0) {
             return record;
         } else {
-            throw new HBaseTableException("Invalid data found on row '" + Bytes.toString(rowId) + "' on table '" + this.tableName + "'.");
+            throw new HBaseTableException("Invalid data found on row '" + Bytes.toString(rowId) + "' on table '"
+                    + this.tableName + "'.");
         }
     }
 

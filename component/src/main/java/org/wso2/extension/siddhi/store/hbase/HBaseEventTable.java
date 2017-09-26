@@ -39,6 +39,10 @@ import org.wso2.extension.siddhi.store.hbase.condition.HBaseExpressionVisitor;
 import org.wso2.extension.siddhi.store.hbase.exception.HBaseTableException;
 import org.wso2.extension.siddhi.store.hbase.iterator.HBaseScanIterator;
 import org.wso2.extension.siddhi.store.hbase.util.HBaseTableUtils;
+import org.wso2.siddhi.annotation.Example;
+import org.wso2.siddhi.annotation.Extension;
+import org.wso2.siddhi.annotation.Parameter;
+import org.wso2.siddhi.annotation.util.DataType;
 import org.wso2.siddhi.core.exception.ConnectionUnavailableException;
 import org.wso2.siddhi.core.exception.OperationNotSupportedException;
 import org.wso2.siddhi.core.table.record.AbstractRecordTable;
@@ -66,6 +70,49 @@ import static org.wso2.extension.siddhi.store.hbase.util.HBaseEventTableConstant
 import static org.wso2.extension.siddhi.store.hbase.util.HBaseEventTableConstants.DEFAULT_CF_NAME;
 import static org.wso2.siddhi.core.util.SiddhiConstants.ANNOTATION_STORE;
 
+/**
+ * Class representing the HBase Event Table implementation.
+ */
+@Extension(
+        name = "hbase",
+        namespace = "store",
+        description = "This extension assigns data sources and connection instructions to event tables. It also " +
+                "implements read write operations on connected datasources",
+        parameters = {
+                @Parameter(name = "any.hbase.property",
+                        description = "Any property that is specify-able for HBase connectivity in hbase-site.xml is" +
+                                "also accepted by the HBase Store implementation.",
+                        type = {DataType.STRING}),
+                @Parameter(name = "table.name",
+                        description = "The name with which the event table should be persisted in the store. If no " +
+                                "name is specified via this parameter, the event table is persisted with the same " +
+                                "name as the Siddhi table.",
+                        type = {DataType.STRING},
+                        optional = true,
+                        defaultValue = "The table name defined in the Siddhi App query."),
+                @Parameter(name = "column.family",
+                        description = "The number of characters that the values for fields of the `STRING` type in " +
+                                "the table definition must contain. If this is not specified, the default number of " +
+                                "characters specific to the database type is considered.",
+                        type = {DataType.STRING},
+                        optional = true,
+                        defaultValue = "'wso2.sp'")
+        },
+        examples = {
+                @Example(
+                        syntax = "define stream StockStream (symbol string, price float, volume long); " +
+                                "@Store(type=\"hbase\", table.name=\"StockTable\", column.family=\"StockCF\", " +
+                                "hbase.zookeeper.quorum=\"localhost\", hbase.zookeeper.property.clientPort=\"2181\")" +
+                                "define table StockTable (symbol string, price float, volume long);",
+                        description = "The above example creates an event table named `StockTable` with a column " +
+                                "family `StockCF` on the HBase instance if it does not already exist (with 3 " +
+                                "attributes named `symbol`, `price`, and `volume` of the types types `string`, " +
+                                "`float` and `long` respectively). The connection is made as specified by the " +
+                                "parameters configured for the '@Store' annotation. The `symbol` attribute is " +
+                                "considered a unique field, and the HBase Row IDs will be as this field's values"
+                )
+        }
+)
 public class HBaseEventTable extends AbstractRecordTable {
 
     private static final Log log = LogFactory.getLog(HBaseEventTable.class);
@@ -240,22 +287,28 @@ public class HBaseEventTable extends AbstractRecordTable {
      * and will create it if it doesn't.
      */
     private void checkAndCreateTable() {
-        TableName table = TableName.valueOf(this.tableName);
-        HTableDescriptor descriptor = new HTableDescriptor(table).addFamily(
-                new HColumnDescriptor(this.columnFamily).setMaxVersions(1));
-        Admin admin = null;
-        try {
-            admin = this.connection.getAdmin();
-            if (admin.tableExists(table)) {
+        TableName tableDef = TableName.valueOf(this.tableName);
+        HTableDescriptor tableDescriptor = new HTableDescriptor(tableDef);
+        HColumnDescriptor columnFamilyDescriptor = new HColumnDescriptor(this.columnFamily).setMaxVersions(1);
+        tableDescriptor.addFamily(columnFamilyDescriptor);
+        try (Admin admin = this.connection.getAdmin()) {
+            if (admin.tableExists(tableDef)) {
                 log.debug("Table " + tableName + " already exists.");
-                return;
+                try (Table table = this.connection.getTable(TableName.valueOf(this.tableName))) {
+                    HTableDescriptor descriptor1 = table.getTableDescriptor();
+                    if (descriptor1.hasFamily(Bytes.toBytes(this.columnFamily))) {
+                        log.debug("Table " + tableName + " already contains column family "
+                                + this.columnFamily + ".");
+                    } else {
+                        admin.addColumn(tableDef, columnFamilyDescriptor);
+                    }
+                    return;
+                }
             }
-            admin.createTable(descriptor);
-            log.debug("Table " + tableName + " created.");
+            admin.createTable(tableDescriptor);
+            log.debug("Table " + tableName + " created with column family " + this.columnFamily + ".");
         } catch (IOException e) {
             throw new HBaseTableException("Error creating table " + tableName + " : " + e.getMessage(), e);
-        } finally {
-            HBaseTableUtils.closeQuietly(admin);
         }
     }
 
@@ -423,5 +476,4 @@ public class HBaseEventTable extends AbstractRecordTable {
             //Do nothing
         }
     }
-
 }
