@@ -25,6 +25,7 @@ import org.wso2.siddhi.query.api.expression.condition.Compare;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
 /**
@@ -65,12 +66,12 @@ public class HBaseExpressionVisitor extends BaseExpressionVisitor {
             if (operation.getOperand1() instanceof Operand.StoreVariable) {
                 if (operation.getOperator() == Compare.Operator.EQUAL) {
                     equalsWithStoreVariables.add(
-                            ((Operand.StoreVariable) operation.getOperand1()).getName().toLowerCase());
+                            ((Operand.StoreVariable) operation.getOperand1()).getName().toLowerCase(Locale.ROOT));
                 }
             } else if (operation.getOperand2() instanceof Operand.StoreVariable) {
                 if (operation.getOperator() == Compare.Operator.EQUAL) {
                     equalsWithStoreVariables.add(
-                            ((Operand.StoreVariable) operation.getOperand2()).getName().toLowerCase());
+                            ((Operand.StoreVariable) operation.getOperand2()).getName().toLowerCase(Locale.ROOT));
                 }
             } else {
                 throw new OperationNotSupportedException("The HBase Table implementation does not support " +
