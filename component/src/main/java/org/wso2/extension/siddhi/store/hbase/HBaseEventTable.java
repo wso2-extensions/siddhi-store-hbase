@@ -446,7 +446,7 @@ public class HBaseEventTable extends AbstractRecordTable {
         }
     }
 
-    private static class HBaseGetIterator implements RecordIterator<Object[]> {
+    private class HBaseGetIterator implements RecordIterator<Object[]> {
 
         private Iterator<Object[]> internalIterator;
         Table table;
