@@ -36,6 +36,7 @@ public class HBaseExpressionVisitor extends BaseExpressionVisitor {
 
     private boolean readOnlyCondition;
     private boolean allKeyEquals;
+    private boolean atomicCondition;
     private List<BasicCompareOperation> compareOps;
     private List<String> primaryKeys;
 
@@ -81,6 +82,10 @@ public class HBaseExpressionVisitor extends BaseExpressionVisitor {
         }
         if (!equalsWithStoreVariables.containsAll(primaryKeys)) {
             this.allKeyEquals = true;
+        }
+        if (this.atomicCondition) {
+            this.compareOps.clear();
+            this.allKeyEquals = false;
         }
     }
 
@@ -134,6 +139,11 @@ public class HBaseExpressionVisitor extends BaseExpressionVisitor {
     }
 
     public void endVisitConstant(Object value, Attribute.Type type) {
+        if (this.currentOperation == null && type == Attribute.Type.BOOL && value == Boolean.TRUE) {
+            // Siddhi returns "true" when there are no conditions. Remove all conditions if this is the case.
+            this.atomicCondition = true;
+            return;
+        }
         Operand.Constant constant = new Operand.Constant(value, type);
         if (this.currentOperation.getOperand1() == null) {
             this.currentOperation.setOperand1(constant);
