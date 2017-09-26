@@ -52,9 +52,6 @@ public class BasicCompareOperation {
     }
 
     public Operand getOperand2() {
-        if (operand1 instanceof Operand.StreamVariable) {
-            return operand1;
-        }
         return operand2;
     }
 
