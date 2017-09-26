@@ -33,7 +33,6 @@ import org.wso2.extension.siddhi.store.hbase.condition.Operand.StreamVariable;
 import org.wso2.extension.siddhi.store.hbase.exception.HBaseTableException;
 import org.wso2.siddhi.core.exception.OperationNotSupportedException;
 import org.wso2.siddhi.query.api.annotation.Annotation;
-import org.wso2.siddhi.query.api.annotation.Element;
 import org.wso2.siddhi.query.api.definition.Attribute;
 import org.wso2.siddhi.query.api.expression.condition.Compare;
 
@@ -46,6 +45,7 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutput;
 import java.io.ObjectOutputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -103,8 +103,10 @@ public class HBaseTableUtils {
     }
 
     public static List<Integer> inferPrimaryKeyOrdinals(List<Attribute> schema, Annotation primaryKeys) {
-        List<String> elements = schema.stream().map(Attribute::getName).collect(Collectors.toList());
-        return primaryKeys.getElements().stream().map(Element::getValue).map(candidateKey -> {
+        List<String> elements = schema.stream().map(Attribute::getName).map(String::toLowerCase)
+                .collect(Collectors.toList());
+        List<String> keys = Arrays.asList(primaryKeys.getElements().get(0).getValue().split(","));
+        return keys.stream().map(String::trim).map(String::toLowerCase).map(candidateKey -> {
             int idx = elements.indexOf(candidateKey);
             if (idx == -1) {
                 throw new HBaseTableException("Specified primary key '" + candidateKey + "' does not exist as " +
