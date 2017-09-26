@@ -60,11 +60,9 @@ public class HBaseScanIterator implements RecordIterator<Object[]> {
             throw new HBaseTableException("The table '" + tableName + "' could not be initialized for reading: "
                     + e.getMessage(), e);
         }
-        Scan scan = new Scan();
-        scan.addFamily(Bytes.toBytes(columnFamily));
-        conditions.forEach(operation ->
-                scan.setFilter(HBaseTableUtils.initializeFilter(operation, parameters, this.columnFamily))
-        );
+        Scan scan = new Scan()
+                .addFamily(Bytes.toBytes(columnFamily))
+                .setFilter(HBaseTableUtils.convertConditionsToFilters(conditions, parameters, this.columnFamily));
         try {
             ResultScanner scanner = table.getScanner(scan);
             this.resultIterator = scanner.iterator();

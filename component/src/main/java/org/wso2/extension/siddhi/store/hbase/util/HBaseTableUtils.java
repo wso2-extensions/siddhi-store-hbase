@@ -22,6 +22,7 @@ import org.apache.hadoop.hbase.CellUtil;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.filter.CompareFilter;
 import org.apache.hadoop.hbase.filter.Filter;
+import org.apache.hadoop.hbase.filter.FilterList;
 import org.apache.hadoop.hbase.filter.SingleColumnValueFilter;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.wso2.extension.siddhi.store.hbase.condition.BasicCompareOperation;
@@ -228,7 +229,7 @@ public class HBaseTableUtils {
         }
     }
 
-    public static Filter initializeFilter(BasicCompareOperation operation, Map<String, Object> parameters,
+    private static Filter initializeFilter(BasicCompareOperation operation, Map<String, Object> parameters,
                                           String columnFamily) {
         Operand operand1 = operation.getOperand1();
         Operand operand2 = operation.getOperand2();
@@ -263,6 +264,13 @@ public class HBaseTableUtils {
                     "used in a condition contain a table column reference. Please check your query and try again,");
         }
         return filter;
+    }
+
+    public static FilterList convertConditionsToFilters(List<BasicCompareOperation> operations, Map<String, Object> parameters,
+                                                        String columnFamily) {
+        FilterList filterList = new FilterList();
+        operations.stream().map(operation -> initializeFilter(operation, parameters, columnFamily)).forEach(filterList::addFilter);
+        return filterList;
     }
 
     private static CompareFilter.CompareOp convertOperator(Compare.Operator operator) {

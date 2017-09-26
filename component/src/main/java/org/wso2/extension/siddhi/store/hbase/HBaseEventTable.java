@@ -366,7 +366,7 @@ public class HBaseEventTable extends AbstractRecordTable {
         List<BasicCompareOperation> operations = ((HBaseCompiledCondition) compiledCondition).getOperations();
         String rowID = HBaseTableUtils.inferKeyFromCondition(conditionParameterMap, this.primaryKeys);
         Get get = new Get(Bytes.toBytes(rowID));
-        operations.forEach(operation -> get.setFilter(HBaseTableUtils.initializeFilter(operation, conditionParameterMap, this.columnFamily)));
+        get.setFilter(HBaseTableUtils.convertConditionsToFilters(operations, conditionParameterMap, this.columnFamily));
         try {
             table = this.connection.getTable(TableName.valueOf(this.tableName));
             Result result = table.get(get);
