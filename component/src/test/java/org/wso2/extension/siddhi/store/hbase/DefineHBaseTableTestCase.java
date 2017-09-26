@@ -29,14 +29,15 @@ import org.wso2.siddhi.core.SiddhiAppRuntime;
 import org.wso2.siddhi.core.SiddhiManager;
 import org.wso2.siddhi.core.stream.input.InputHandler;
 
+import static org.wso2.extension.siddhi.store.hbase.util.HBaseTableTestUtils.COLUMN_FAMILY;
+import static org.wso2.extension.siddhi.store.hbase.util.HBaseTableTestUtils.TABLE_NAME;
+import static org.wso2.extension.siddhi.store.hbase.util.HBaseTableTestUtils.ZK_CLIENT_PORT;
+import static org.wso2.extension.siddhi.store.hbase.util.HBaseTableTestUtils.ZK_QUORUM;
+
 public class DefineHBaseTableTestCase {
 
 
     private static final Logger log = Logger.getLogger(DefineHBaseTableTestCase.class);
-    private static final String TABLE_NAME = "HBaseTestTable";
-    private static final String COLUMN_FAMILY = "AnalyticsFamily";
-    private static final String ZK_QUORUM = "localhost";
-    private static final int ZK_CLIENT_PORT = 2181;
 
     @BeforeClass
     public static void startTest() {

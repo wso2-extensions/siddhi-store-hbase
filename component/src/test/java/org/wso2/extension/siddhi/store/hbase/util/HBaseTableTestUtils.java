@@ -40,6 +40,11 @@ public class HBaseTableTestUtils {
 
     private static Connection connection;
 
+    public static final String TABLE_NAME = "HBaseTestTable";
+    public static final String COLUMN_FAMILY = "AnalyticsFamily";
+    public static final String ZK_QUORUM = "localhost";
+    public static final int ZK_CLIENT_PORT = 2181;
+
     private static final Log log = LogFactory.getLog(HBaseTableTestUtils.class);
 
     private static Connection getConnection() {
