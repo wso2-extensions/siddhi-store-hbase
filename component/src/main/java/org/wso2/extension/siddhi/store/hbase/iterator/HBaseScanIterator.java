@@ -23,6 +23,7 @@ import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.ResultScanner;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.client.Table;
+import org.apache.hadoop.hbase.filter.FilterList;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.wso2.extension.siddhi.store.hbase.condition.BasicCompareOperation;
 import org.wso2.extension.siddhi.store.hbase.condition.HBaseCompiledCondition;
@@ -65,9 +66,13 @@ public class HBaseScanIterator implements RecordIterator<Object[]> {
             throw new HBaseTableException("The table '" + tableName + "' could not be initialized for reading: "
                     + e.getMessage(), e);
         }
+
+        FilterList filterList = HBaseTableUtils.convertConditionsToFilters(conditions, parameters, this.columnFamily);
         Scan scan = new Scan()
-                .addFamily(Bytes.toBytes(columnFamily))
-                .setFilter(HBaseTableUtils.convertConditionsToFilters(conditions, parameters, this.columnFamily));
+                .addFamily(Bytes.toBytes(columnFamily));
+        if (filterList.getFilters().size() > 0) {
+            scan.setFilter(filterList);
+        }
         try {
             ResultScanner scanner = table.getScanner(scan);
             this.resultIterator = scanner.iterator();

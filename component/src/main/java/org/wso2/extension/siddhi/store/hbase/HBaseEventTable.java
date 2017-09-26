@@ -32,6 +32,7 @@ import org.apache.hadoop.hbase.client.Get;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.Table;
+import org.apache.hadoop.hbase.filter.FilterList;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.wso2.extension.siddhi.store.hbase.condition.BasicCompareOperation;
 import org.wso2.extension.siddhi.store.hbase.condition.HBaseCompiledCondition;
@@ -419,7 +420,11 @@ public class HBaseEventTable extends AbstractRecordTable {
         List<BasicCompareOperation> operations = ((HBaseCompiledCondition) compiledCondition).getOperations();
         String rowID = HBaseTableUtils.inferKeyFromCondition(conditionParameterMap, this.primaryKeys);
         Get get = new Get(Bytes.toBytes(rowID));
-        get.setFilter(HBaseTableUtils.convertConditionsToFilters(operations, conditionParameterMap, this.columnFamily));
+        FilterList filterList = HBaseTableUtils.convertConditionsToFilters(operations, conditionParameterMap,
+                this.columnFamily);
+        if (filterList.getFilters().size() > 0) {
+            get.setFilter(filterList);
+        }
         try {
             table = this.connection.getTable(TableName.valueOf(this.tableName));
             Result result = table.get(get);
