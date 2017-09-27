@@ -23,6 +23,9 @@
     <test name="org.wso2.das">
         <classes>
             <class name="org.wso2.extension.siddhi.store.hbase.DefineHBaseTableTestCase"/>
+            <class name="org.wso2.extension.siddhi.store.hbase.InsertIntoHBaseTableTestCase"/>
+            <class name="org.wso2.extension.siddhi.store.hbase.ReadFromHBaseTableTestCase"/>
+            <class name="org.wso2.extension.siddhi.store.hbase.DeleteFromHBaseTableTestCase"/>
         </classes>
     </test>
 </suite>
