@@ -32,8 +32,4 @@ public class HBaseTableException extends SiddhiAppCreationException {
         super(message, throwable);
     }
 
-    public HBaseTableException(Throwable throwable) {
-        super(throwable);
-    }
-
 }

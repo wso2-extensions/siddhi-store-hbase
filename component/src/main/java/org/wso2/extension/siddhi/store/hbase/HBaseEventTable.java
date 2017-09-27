@@ -190,7 +190,7 @@ public class HBaseEventTable extends AbstractRecordTable {
         if (noKeys) {
             throw new OperationNotSupportedException("The HBase Table extension requires the specification of " +
                     "Primary Keys for delete operations. Please check your query and try again");
-        } else if (!((HBaseCompiledCondition) compiledCondition).isReadOnlyCondition()) {
+        } else if (((HBaseCompiledCondition) compiledCondition).isReadOnlyCondition()) {
             throw new OperationNotSupportedException("The HBase Table extension supports comparison operations for " +
                     "record read operations only. Please check your query and try again.");
         } else if (!((HBaseCompiledCondition) compiledCondition).isAllKeyEquals()) {
@@ -198,7 +198,8 @@ public class HBaseEventTable extends AbstractRecordTable {
                     "operations have all primary key entries to be present in the query in EQUALS form. " +
                     "Please check your query and try again");
         } else {
-            List<Delete> deletes = HBaseTableUtils.getKeysForParameters(deleteConditionParameterMaps, primaryKeys)
+            List<Delete> deletes = HBaseTableUtils.getKeysForParameters(deleteConditionParameterMaps,
+                    (HBaseCompiledCondition) compiledCondition, primaryKeys)
                     .stream().map(Bytes::toBytes).map(Delete::new).collect(Collectors.toList());
             try (Table table = this.connection.getTable(TableName.valueOf(this.tableName))) {
                 table.delete(deletes);
@@ -245,8 +246,7 @@ public class HBaseEventTable extends AbstractRecordTable {
 
     @Override
     protected CompiledExpression compileSetAttribute(ExpressionBuilder expressionBuilder) {
-        throw new OperationNotSupportedException("SET operations are not supported by the HBase Table extension. " +
-                "Please check your query and try again");
+        return new HBaseCompiledCondition();
     }
 
     @Override
@@ -369,11 +369,14 @@ public class HBaseEventTable extends AbstractRecordTable {
                                        List<Map<String, Object>> updateValues) {
         List<Put> puts = new ArrayList<>();
         if (((HBaseCompiledCondition) compiledCondition).isAllKeyEquals()) {
-            while (updateConditionParameterMaps.iterator().hasNext() && updateValues.iterator().hasNext()) {
-                Map<String, Object> conditionParameterMap = updateConditionParameterMaps.iterator().next();
-                Map<String, Object> updateColumnValues = updateValues.iterator().next();
-                String rowKey = HBaseTableUtils.inferKeyFromCondition(conditionParameterMap, this.primaryKeys);
-                if (this.checkSingleRecord(conditionParameterMap)) {
+            Iterator<Map<String, Object>> conditionParamIterator = updateConditionParameterMaps.iterator();
+            Iterator<Map<String, Object>> updateSetMapIterator = updateValues.iterator();
+            while (conditionParamIterator.hasNext() && updateSetMapIterator.hasNext()) {
+                Map<String, Object> conditionParameterMap = conditionParamIterator.next();
+                Map<String, Object> updateColumnValues = updateSetMapIterator.next();
+                String rowKey = HBaseTableUtils.inferKeyFromCondition(conditionParameterMap,
+                        (HBaseCompiledCondition) compiledCondition, this.primaryKeys);
+                if (this.checkSingleRecord(conditionParameterMap, compiledCondition)) {
                     Put put = new Put(Bytes.toBytes(rowKey));
                     for (int i = 0; i < this.schema.size(); i++) {
                         Attribute attribute = this.schema.get(i);
@@ -388,10 +391,10 @@ public class HBaseEventTable extends AbstractRecordTable {
                                 put.addColumn(Bytes.toBytes(this.columnFamily), Bytes.toBytes(attribute.getName()),
                                         HBaseTableUtils.encodeCell(attribute.getType(),
                                                 updateColumnValues.get(attribute.getName()), rowKey));
+                                puts.add(put);
                             }
                         }
                     }
-                    puts.add(put);
                 } else {
                     if (log.isDebugEnabled()) {
                         log.debug("a record with key '" + rowKey + "' fulfilling the criteria does not exist on " +
@@ -406,7 +409,9 @@ public class HBaseEventTable extends AbstractRecordTable {
                     "Please check your query and try again");
         }
         try (Table table = this.connection.getTable(TableName.valueOf(this.tableName))) {
-            table.put(puts);
+            if (puts.size() > 0) {
+                table.put(puts);
+            }
         } catch (IOException e) {
             throw new HBaseTableException("Error while performing insert/update operation on table '" +
                     this.tableName + "': " + e.getMessage(), e);
@@ -418,7 +423,8 @@ public class HBaseEventTable extends AbstractRecordTable {
         Table table;
         List<Object[]> records = new ArrayList<>();
         List<BasicCompareOperation> operations = ((HBaseCompiledCondition) compiledCondition).getOperations();
-        String rowID = HBaseTableUtils.inferKeyFromCondition(conditionParameterMap, this.primaryKeys);
+        String rowID = HBaseTableUtils.inferKeyFromCondition(conditionParameterMap,
+                (HBaseCompiledCondition) compiledCondition, this.primaryKeys);
         Get get = new Get(Bytes.toBytes(rowID));
         FilterList filterList = HBaseTableUtils.convertConditionsToFilters(operations, conditionParameterMap,
                 this.columnFamily);
@@ -440,9 +446,9 @@ public class HBaseEventTable extends AbstractRecordTable {
         return new HBaseGetIterator(records.iterator(), table);
     }
 
-    private boolean checkSingleRecord(Map<String, Object> conditionParameterMap) {
+    private boolean checkSingleRecord(Map<String, Object> conditionParameterMap, CompiledCondition compiledCondition) {
         Get get = new Get(Bytes.toBytes(HBaseTableUtils.inferKeyFromCondition(conditionParameterMap,
-                this.primaryKeys)));
+                (HBaseCompiledCondition) compiledCondition, this.primaryKeys)));
         try (Table table = this.connection.getTable(TableName.valueOf(this.tableName))) {
             return table.exists(get);
         } catch (IOException e) {

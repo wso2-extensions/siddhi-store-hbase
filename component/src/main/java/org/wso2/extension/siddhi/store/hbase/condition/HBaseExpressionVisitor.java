@@ -61,9 +61,20 @@ public class HBaseExpressionVisitor extends BaseExpressionVisitor {
         return compareOps;
     }
 
+    /**
+     * Pre-process given conditions and check if they fall within the compatibility criteria imposed by the HBase API.
+     */
     private void preProcessConditions() {
         List<String> equalsWithStoreVariables = new ArrayList<>();
         for (BasicCompareOperation operation : this.compareOps) {
+            // Check if both operands are store variables, which may not be allowed.
+            if (operation.getOperand1() instanceof Operand.StoreVariable &&
+                    operation.getOperand2() instanceof Operand.StoreVariable) {
+                throw new OperationNotSupportedException("The HBase Table implementation does not support " +
+                        "conditions which have both operands as table columns. Please check your query and try again.");
+            }
+            // Construct a list of conditions which contain a store variable and an EQUALS condition. Will be used
+            // later to check if all primary keys are present with an EQUALS condition.
             if (operation.getOperand1() instanceof Operand.StoreVariable) {
                 if (operation.getOperator() == Compare.Operator.EQUAL) {
                     equalsWithStoreVariables.add(
@@ -80,9 +91,11 @@ public class HBaseExpressionVisitor extends BaseExpressionVisitor {
                         "query and try again.");
             }
         }
-        if (!equalsWithStoreVariables.containsAll(primaryKeys)) {
+        if (equalsWithStoreVariables.containsAll(primaryKeys)) {
             this.allKeyEquals = true;
         }
+        // Check if the only condition passed by Siddhi to this level is boolean TRUE (i.e. there are no conditions).
+        // In this case, all other conditions should be ignored.
         if (this.atomicCondition) {
             this.compareOps.clear();
             this.allKeyEquals = false;
@@ -140,7 +153,8 @@ public class HBaseExpressionVisitor extends BaseExpressionVisitor {
 
     public void endVisitConstant(Object value, Attribute.Type type) {
         if (this.currentOperation == null && type == Attribute.Type.BOOL && value == Boolean.TRUE) {
-            // Siddhi returns "true" when there are no conditions. Remove all conditions if this is the case.
+            // Siddhi returns "true" when there are no conditions. Remove any and all conditions if this is the case.
+            // This removal operation will be done during pre-processing the condition prior to compilation end.
             this.atomicCondition = true;
             return;
         }

@@ -26,6 +26,7 @@ import org.apache.hadoop.hbase.filter.FilterList;
 import org.apache.hadoop.hbase.filter.SingleColumnValueFilter;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.wso2.extension.siddhi.store.hbase.condition.BasicCompareOperation;
+import org.wso2.extension.siddhi.store.hbase.condition.HBaseCompiledCondition;
 import org.wso2.extension.siddhi.store.hbase.condition.Operand;
 import org.wso2.extension.siddhi.store.hbase.condition.Operand.Constant;
 import org.wso2.extension.siddhi.store.hbase.condition.Operand.StoreVariable;
@@ -83,18 +84,47 @@ public class HBaseTableUtils {
     }
 
     public static List<String> getKeysForParameters(List<Map<String, Object>> parameterMaps,
+                                                    HBaseCompiledCondition compiledCondition,
                                                     List<Attribute> primaryKeys) {
         List<String> keys = new ArrayList<>();
-        parameterMaps.forEach(parameterMap -> {
-            keys.add(inferKeyFromCondition(parameterMap, primaryKeys));
-        });
+        parameterMaps.forEach(parameterMap -> keys.add(
+                inferKeyFromCondition(parameterMap, compiledCondition, primaryKeys)));
         return keys;
     }
 
-    public static String inferKeyFromCondition(Map<String, Object> parameterMap, List<Attribute> primaryKeys) {
+    public static String inferKeyFromCondition(Map<String, Object> parameterMap,
+                                               HBaseCompiledCondition compiledCondition, List<Attribute> primaryKeys) {
         StringBuilder keyString = new StringBuilder();
+        List<BasicCompareOperation> operations = compiledCondition.getOperations();
         primaryKeys.forEach(key -> {
-            keyString.append(stringifyCell(key.getType(), parameterMap.get(key.getName())));
+            operations.forEach(operation -> {
+                Operand operand1 = operation.getOperand1();
+                Operand operand2 = operation.getOperand2();
+                if (operation.getOperator() == Compare.Operator.EQUAL) {
+                    // Checking if one of the operands have the primary key as its name.
+                    if (operand1 instanceof StoreVariable &&
+                            (((StoreVariable) operand1).getName().equalsIgnoreCase(key.getName()))) {
+                        // Is operand 1 a primary key?
+                        if (operand2 instanceof StreamVariable) {
+                            // If the other operand is a stream variable, get its value from the parameter map.
+                            keyString.append(stringifyCell(key.getType(),
+                                    parameterMap.get(((StreamVariable) operand2).getName())));
+                        } else if (operand2 instanceof Constant) {
+                            // Pr if the other operand is a constant, directly add its value.
+                            keyString.append(stringifyCell(key.getType(), ((Constant) operand2).getValue()));
+                        }
+                    } else if (operand2 instanceof StoreVariable &&
+                            (((StoreVariable) operand2).getName().equalsIgnoreCase(key.getName()))) {
+                        // Or is operand 2 a primary key?
+                        if (operand1 instanceof StreamVariable) {
+                            keyString.append(stringifyCell(key.getType(),
+                                    parameterMap.get(((StreamVariable) operand1).getName())));
+                        } else if (operand1 instanceof Constant) {
+                            keyString.append(stringifyCell(key.getType(), ((Constant) operand1).getValue()));
+                        }
+                    }
+                }
+            });
             if (primaryKeys.indexOf(key) != primaryKeys.size() - 1) {
                 keyString.append(KEY_SEPARATOR);
             }
@@ -107,13 +137,12 @@ public class HBaseTableUtils {
                 .collect(Collectors.toList());
         List<String> keys = Arrays.asList(primaryKeys.getElements().get(0).getValue().split(","));
         return keys.stream().map(String::trim).map(String::toLowerCase).map(candidateKey -> {
-            int idx = elements.indexOf(candidateKey);
-            if (idx == -1) {
+            int index = elements.indexOf(candidateKey);
+            if (index == -1) {
                 throw new HBaseTableException("Specified primary key '" + candidateKey + "' does not exist as " +
-                        "part of the table schema. " +
-                        "Please check your query and try again.");
+                        "part of the table schema. Please check your query and try again.");
             }
-            return idx;
+            return index;
         }).collect(Collectors.toList());
     }
 

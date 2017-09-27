@@ -19,6 +19,7 @@ package org.wso2.extension.siddhi.store.hbase.condition;
 
 import org.wso2.siddhi.core.util.collection.operator.CompiledCondition;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -39,6 +40,12 @@ public class HBaseCompiledCondition implements CompiledCondition {
         this.operations = conditions;
         this.readOnlyCondition = readOnlyCondition;
         this.allKeyEquals = allKeyEquals;
+    }
+
+    public HBaseCompiledCondition() {
+        this.operations = new ArrayList<>();
+        this.readOnlyCondition = false;
+        this.allKeyEquals = false;
     }
 
     @Override

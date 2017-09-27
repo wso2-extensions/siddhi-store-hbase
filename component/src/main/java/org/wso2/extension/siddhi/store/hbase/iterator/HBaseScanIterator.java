@@ -50,12 +50,10 @@ public class HBaseScanIterator implements RecordIterator<Object[]> {
     private String columnFamily;
     private List<Attribute> schema;
     private Table table;
-    private Map<String, Object> parameters;
 
     public HBaseScanIterator(Map<String, Object> findConditionParameterMap, String tableName, String columnFamily,
                              HBaseCompiledCondition compiledCondition, Connection connection, List<Attribute> schema) {
         this.columnFamily = columnFamily;
-        this.parameters = findConditionParameterMap;
         this.tableName = tableName;
         this.schema = schema;
         List<BasicCompareOperation> conditions = compiledCondition.getOperations();
@@ -67,7 +65,8 @@ public class HBaseScanIterator implements RecordIterator<Object[]> {
                     + e.getMessage(), e);
         }
 
-        FilterList filterList = HBaseTableUtils.convertConditionsToFilters(conditions, parameters, this.columnFamily);
+        FilterList filterList = HBaseTableUtils.convertConditionsToFilters(
+                conditions, findConditionParameterMap, this.columnFamily);
         Scan scan = new Scan()
                 .addFamily(Bytes.toBytes(columnFamily));
         if (filterList.getFilters().size() > 0) {

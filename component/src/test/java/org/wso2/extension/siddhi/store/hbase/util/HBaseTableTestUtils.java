@@ -88,7 +88,7 @@ public class HBaseTableTestUtils {
         }
     }
 
-    public static int getRowsInTable(String tableName, String columnFamily) {
+    public static long getRowsInTable(String tableName, String columnFamily) {
         int counter = 0;
         try (Table table = getConnection().getTable(TableName.valueOf(tableName))) {
             FilterList allFilters = new FilterList();
