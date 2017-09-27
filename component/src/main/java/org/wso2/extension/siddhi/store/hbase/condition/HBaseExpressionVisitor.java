@@ -152,7 +152,7 @@ public class HBaseExpressionVisitor extends BaseExpressionVisitor {
     }
 
     public void endVisitConstant(Object value, Attribute.Type type) {
-        if (this.currentOperation == null && type == Attribute.Type.BOOL && value == Boolean.TRUE) {
+        if (this.currentOperation == null && type == Attribute.Type.BOOL && value.equals(Boolean.TRUE)) {
             // Siddhi returns "true" when there are no conditions. Remove any and all conditions if this is the case.
             // This removal operation will be done during pre-processing the condition prior to compilation end.
             this.atomicCondition = true;

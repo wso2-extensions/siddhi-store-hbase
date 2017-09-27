@@ -151,7 +151,7 @@ public class HBaseTableUtils {
         schema.forEach(attribute -> {
             Cell dataCell = result.getColumnLatestCell(Bytes.toBytes(columnFamily), Bytes.toBytes(attribute.getName()));
             if (dataCell == null) {
-                throw new HBaseTableException("Data found on row '" + rowID + "' is corrupted, and cannot be decoded.");
+                throw new HBaseTableException("No data found for row '" + rowID + "'.");
             }
             columns.add(CellUtil.cloneValue(dataCell));
         });
