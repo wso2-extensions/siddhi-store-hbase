@@ -26,6 +26,7 @@
             <class name="org.wso2.extension.siddhi.store.hbase.InsertIntoHBaseTableTestCase"/>
             <class name="org.wso2.extension.siddhi.store.hbase.ReadFromHBaseTableTestCase"/>
             <class name="org.wso2.extension.siddhi.store.hbase.DeleteFromHBaseTableTestCase"/>
+            <class name="org.wso2.extension.siddhi.store.hbase.UpdateHBaseTableTestCase"/>
         </classes>
     </test>
 </suite>
