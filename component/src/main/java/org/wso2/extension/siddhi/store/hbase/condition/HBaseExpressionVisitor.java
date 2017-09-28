@@ -48,14 +48,31 @@ public class HBaseExpressionVisitor extends BaseExpressionVisitor {
         this.compareOps = new ArrayList<>();
     }
 
+    /**
+     * Check if the condition specified contains any operations other than EQUALS. In this case, such conditions can be
+     * used only in reading operations (i.e. find()).
+     *
+     * @return boolean true/false.
+     */
     public boolean isReadOnlyCondition() {
         return readOnlyCondition;
     }
 
+    /**
+     * Check if all primary key fields are present in the condition in EQUALS form. If yes, then the rowID can be
+     * inferred from the values in the condition.
+     *
+     * @return boolean true/false
+     */
     public boolean isAllKeyEquals() {
         return allKeyEquals;
     }
 
+    /**
+     * Return the conditions composed by the visitor
+     *
+     * @return the compiled compare operations.
+     */
     public List<BasicCompareOperation> getConditions() {
         this.preProcessConditions();
         return compareOps;
@@ -63,6 +80,7 @@ public class HBaseExpressionVisitor extends BaseExpressionVisitor {
 
     /**
      * Pre-process given conditions and check if they fall within the compatibility criteria imposed by the HBase API.
+     * This involves checking for variable types as well as the boolean conditions above.
      */
     private void preProcessConditions() {
         List<String> equalsWithStoreVariables = new ArrayList<>();

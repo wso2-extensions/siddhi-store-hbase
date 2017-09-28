@@ -64,7 +64,7 @@ public class HBaseScanIterator implements RecordIterator<Object[]> {
             throw new HBaseTableException("The table '" + tableName + "' could not be initialized for reading: "
                     + e.getMessage(), e);
         }
-
+        // Construct a list of HBase filters and apply them to the scan operation.
         FilterList filterList = HBaseTableUtils.convertConditionsToFilters(
                 conditions, findConditionParameterMap, this.columnFamily);
         Scan scan = new Scan()

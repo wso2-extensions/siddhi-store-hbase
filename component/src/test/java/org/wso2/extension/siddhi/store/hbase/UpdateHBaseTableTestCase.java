@@ -52,17 +52,17 @@ public class UpdateHBaseTableTestCase {
 
     @BeforeClass
     public static void startTest() {
-        log.info("== RDBMS Table UPDATE tests started ==");
+        log.info("== HBase Table UPDATE tests started ==");
     }
 
     @AfterClass
     public static void shutdown() {
-        log.info("== RDBMS Table UPDATE tests completed ==");
+        log.info("== HBase Table UPDATE tests completed ==");
     }
 
     @Test
     public void updateFromTableTest1() throws InterruptedException {
-        //Check for update event data in RDBMS table when a primary key condition is true.
+        //Check for update event data in HBase table when a primary key condition is true.
         log.info("updateFromTableTest1");
         SiddhiManager siddhiManager = new SiddhiManager();
         String streams = "" +
@@ -102,7 +102,7 @@ public class UpdateHBaseTableTestCase {
 
     @Test(dependsOnMethods = "updateFromTableTest1")
     public void updateFromTableTest2() throws InterruptedException {
-        //Check for update event data in RDBMS table when multiple key conditions are true.
+        //Check for update event data in HBase table when multiple key conditions are true.
         log.info("updateFromTableTest2");
         SiddhiManager siddhiManager = new SiddhiManager();
         String streams = "" +

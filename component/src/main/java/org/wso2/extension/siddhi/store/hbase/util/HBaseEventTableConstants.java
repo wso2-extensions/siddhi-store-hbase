@@ -18,7 +18,7 @@
 package org.wso2.extension.siddhi.store.hbase.util;
 
 /**
- * Class for maintaining constants.
+ * Class for maintaining constants used by the HBase table implementation.
  */
 public class HBaseEventTableConstants {
 

@@ -344,6 +344,11 @@ public class HBaseEventTable extends AbstractRecordTable {
         }
     }
 
+    /**
+     * Method for inserting a given list of records to the HBase instance
+     *
+     * @param records the list of records to be inserted.
+     */
     private void putRecords(List<Object[]> records) {
         List<Put> puts = records.stream().map(record -> {
             String rowID = HBaseTableUtils.generatePrimaryKeyValue(record, this.schema, this.primaryKeyOrdinals);
@@ -364,6 +369,14 @@ public class HBaseEventTable extends AbstractRecordTable {
         }
     }
 
+    /**
+     * Method that can be used for checking the HBase table if a record exists, and update it if it does.
+     *
+     * @param compiledCondition            the condition for the update operation.
+     * @param updateConditionParameterMaps the parameter maps which contain stream variable values.
+     * @param updateValues                 the values which should be reflected on the table once the update
+     *                                     operation is done.
+     */
     private void checkAndUpdateRecords(CompiledCondition compiledCondition,
                                        List<Map<String, Object>> updateConditionParameterMaps,
                                        List<Map<String, Object>> updateValues) {
@@ -418,6 +431,14 @@ public class HBaseEventTable extends AbstractRecordTable {
         }
     }
 
+    /**
+     * Method for reading a single record from the HBase table. Here, the record will be uniquely identified by its
+     * rowID.
+     *
+     * @param conditionParameterMap the parameter maps with any stream variable values.
+     * @param compiledCondition     the condition that should be used when reading the record.
+     * @return an iterator which facilitates the retrieval of the matching record.
+     */
     private RecordIterator<Object[]> readSingleRecord(Map<String, Object> conditionParameterMap,
                                                       CompiledCondition compiledCondition) {
         Table table;
@@ -446,6 +467,13 @@ public class HBaseEventTable extends AbstractRecordTable {
         return new HBaseGetIterator(records.iterator(), table);
     }
 
+    /**
+     * Check the HBase table if a specified record exists.
+     *
+     * @param conditionParameterMap the parameter maps with any stream variable values.
+     * @param compiledCondition     the condition that should be used when reading the record.
+     * @return a boolean on whether or not such a record exists.
+     */
     private boolean checkSingleRecord(Map<String, Object> conditionParameterMap, CompiledCondition compiledCondition) {
         Get get = new Get(Bytes.toBytes(HBaseTableUtils.inferKeyFromCondition(conditionParameterMap,
                 (HBaseCompiledCondition) compiledCondition, this.primaryKeys)));
@@ -457,6 +485,9 @@ public class HBaseEventTable extends AbstractRecordTable {
         }
     }
 
+    /**
+     * An iterator class which can be used to physically read a given known record from the HBase instance.
+     */
     private static class HBaseGetIterator implements RecordIterator<Object[]> {
 
         private Iterator<Object[]> internalIterator;

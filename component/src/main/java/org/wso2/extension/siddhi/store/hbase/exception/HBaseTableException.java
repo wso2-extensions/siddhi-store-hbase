@@ -20,7 +20,7 @@ package org.wso2.extension.siddhi.store.hbase.exception;
 import org.wso2.siddhi.core.exception.SiddhiAppCreationException;
 
 /**
- * Class for denoting a custom exception that could be thrown by the HBase store. This is an unchecked exception.
+ * Class for representing a custom exception that could be thrown by the HBase store. This is an unchecked exception.
  */
 public class HBaseTableException extends SiddhiAppCreationException {
 

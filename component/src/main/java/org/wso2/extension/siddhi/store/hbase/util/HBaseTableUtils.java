@@ -69,6 +69,62 @@ public class HBaseTableUtils {
         return (field == null || field.trim().length() == 0);
     }
 
+    /**
+     * Infer the ordinals of the attributes which are to be considered as primary keys. These keys will make up the
+     * rowID of a particular record when written.
+     *
+     * @param schema      the schema defined for the table.
+     * @param primaryKeys the store annotation for primary key fields.
+     * @return a list of integers which comprise of the ordinals.
+     */
+    public static List<Integer> inferPrimaryKeyOrdinals(List<Attribute> schema, Annotation primaryKeys) {
+        List<String> elements = schema.stream().map(Attribute::getName).map(String::toLowerCase)
+                .collect(Collectors.toList());
+        List<String> keys = Arrays.asList(primaryKeys.getElements().get(0).getValue().split(","));
+        return keys.stream().map(String::trim).map(String::toLowerCase).map(candidateKey -> {
+            int index = elements.indexOf(candidateKey);
+            if (index == -1) {
+                throw new HBaseTableException("Specified primary key '" + candidateKey + "' does not exist as " +
+                        "part of the table schema. Please check your query and try again.");
+            }
+            return index;
+        }).collect(Collectors.toList());
+    }
+
+    /**
+     * Method for constructing a record (i.e. an array of objects) based on the result of an HBase table read operation.
+     *
+     * @param rowID        the HBase rowID of the record.
+     * @param columnFamily the column family for which the record belongs to.
+     * @param result       the raw result from the table read.
+     * @param schema       the schema of the table.
+     * @return the constructed record.
+     */
+    public static Object[] constructRecord(String rowID, String columnFamily, Result result, List<Attribute> schema) {
+        List<byte[]> columns = new ArrayList<>();
+        schema.forEach(attribute -> {
+            Cell dataCell = result.getColumnLatestCell(Bytes.toBytes(columnFamily), Bytes.toBytes(attribute.getName()));
+            if (dataCell == null) {
+                throw new HBaseTableException("No data found for row '" + rowID + "'.");
+            }
+            columns.add(CellUtil.cloneValue(dataCell));
+        });
+        if (columns.size() != schema.size()) {
+            throw new HBaseTableException("Data found on row '" + rowID + "' does not match the schema, and " +
+                    "cannot be decoded.");
+        }
+        return columns.stream().map(column -> decodeCell(column, schema.get(columns.indexOf(column)).getType(), rowID))
+                .toArray();
+    }
+
+    /**
+     * Utility method for generating the HBase row key value from a given record.
+     *
+     * @param record      the record for which the key should be generated.
+     * @param schema      the tables's schema, from which the fields' names and types are found.
+     * @param keyOrdinals the ordinals of the primary keys in the schema.
+     * @return the key in a string format.
+     */
     public static String generatePrimaryKeyValue(Object[] record, List<Attribute> schema, List<Integer> keyOrdinals) {
         if (keyOrdinals.size() == 0) {
             return UUID.randomUUID().toString();
@@ -83,15 +139,32 @@ public class HBaseTableUtils {
         return keyString.toString();
     }
 
+    /**
+     * Infer the values of the rowID field based on the conditions and the values for the stream variables
+     * in the conditions.
+     *
+     * @param parameterMaps     the condition paramater maps which contain the value of the stream variables in the
+     *                          conditions, per record.
+     * @param compiledCondition the compiled condition for the query.
+     * @param primaryKeys       the table's primary key fields as a list of attributes.
+     * @return a list of rowIDs.
+     */
     public static List<String> getKeysForParameters(List<Map<String, Object>> parameterMaps,
                                                     HBaseCompiledCondition compiledCondition,
                                                     List<Attribute> primaryKeys) {
-        List<String> keys = new ArrayList<>();
-        parameterMaps.forEach(parameterMap -> keys.add(
-                inferKeyFromCondition(parameterMap, compiledCondition, primaryKeys)));
-        return keys;
+        return parameterMaps.stream().map(parameterMap ->
+                inferKeyFromCondition(parameterMap, compiledCondition, primaryKeys)).collect(Collectors.toList());
     }
 
+    /**
+     * Infer the rowID to be used for a potential record in HBase based on the conditions given and the values for any
+     * constants and stream variables.
+     *
+     * @param parameterMap      parameter map containing values for the stream variables.
+     * @param compiledCondition the compiled condition.
+     * @param primaryKeys       the primary keys defined in the table.
+     * @return a string rowID
+     */
     public static String inferKeyFromCondition(Map<String, Object> parameterMap,
                                                HBaseCompiledCondition compiledCondition, List<Attribute> primaryKeys) {
         StringBuilder keyString = new StringBuilder();
@@ -110,7 +183,7 @@ public class HBaseTableUtils {
                             keyString.append(stringifyCell(key.getType(),
                                     parameterMap.get(((StreamVariable) operand2).getName())));
                         } else if (operand2 instanceof Constant) {
-                            // Pr if the other operand is a constant, directly add its value.
+                            // Or if the other operand is a constant, directly add its value.
                             keyString.append(stringifyCell(key.getType(), ((Constant) operand2).getValue()));
                         }
                     } else if (operand2 instanceof StoreVariable &&
@@ -132,37 +205,13 @@ public class HBaseTableUtils {
         return keyString.toString();
     }
 
-    public static List<Integer> inferPrimaryKeyOrdinals(List<Attribute> schema, Annotation primaryKeys) {
-        List<String> elements = schema.stream().map(Attribute::getName).map(String::toLowerCase)
-                .collect(Collectors.toList());
-        List<String> keys = Arrays.asList(primaryKeys.getElements().get(0).getValue().split(","));
-        return keys.stream().map(String::trim).map(String::toLowerCase).map(candidateKey -> {
-            int index = elements.indexOf(candidateKey);
-            if (index == -1) {
-                throw new HBaseTableException("Specified primary key '" + candidateKey + "' does not exist as " +
-                        "part of the table schema. Please check your query and try again.");
-            }
-            return index;
-        }).collect(Collectors.toList());
-    }
-
-    public static Object[] constructRecord(String rowID, String columnFamily, Result result, List<Attribute> schema) {
-        List<byte[]> columns = new ArrayList<>();
-        schema.forEach(attribute -> {
-            Cell dataCell = result.getColumnLatestCell(Bytes.toBytes(columnFamily), Bytes.toBytes(attribute.getName()));
-            if (dataCell == null) {
-                throw new HBaseTableException("No data found for row '" + rowID + "'.");
-            }
-            columns.add(CellUtil.cloneValue(dataCell));
-        });
-        if (columns.size() != schema.size()) {
-            throw new HBaseTableException("Data found on row '" + rowID + "' does not match the schema, and " +
-                    "cannot be decoded.");
-        }
-        return columns.stream().map(column -> decodeCell(column, schema.get(columns.indexOf(column)).getType(), rowID))
-                .toArray();
-    }
-
+    /**
+     * Util method for converting a field in a given record to string form, to be used when constructing rowIDs.
+     *
+     * @param type  the type of the field.
+     * @param value the field value.
+     * @return a string representation of the field.
+     */
     private static String stringifyCell(Attribute.Type type, Object value) {
         String output;
         switch (type) {
@@ -191,6 +240,14 @@ public class HBaseTableUtils {
         return output;
     }
 
+    /**
+     * Method for encoding a given field in a record for storage in HBase.
+     *
+     * @param type  the type of the field.
+     * @param value the field's value.
+     * @param row   the rowID of the record for which this field belongs to.
+     * @return the encoded value of the field in byte[] form.
+     */
     public static byte[] encodeCell(Attribute.Type type, Object value, String row) {
         byte[] output = null;
         switch (type) {
@@ -219,6 +276,13 @@ public class HBaseTableUtils {
         return output;
     }
 
+    /**
+     * Method which is used for encoding binary data for storage in HBase.
+     *
+     * @param object the binary field.
+     * @param row    the rowID for which this field belongs to.
+     * @return the encoded value of the field in byte[] form.
+     */
     private static byte[] encodeBinaryData(Object object, String row) {
         try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
              ObjectOutput out = new ObjectOutputStream(bos)) {
@@ -233,6 +297,14 @@ public class HBaseTableUtils {
         }
     }
 
+    /**
+     * Method for decoding the value of a cell read from HBase.
+     *
+     * @param column the column which was read from HBase.
+     * @param type   the type of the field (as given in the table's schema).
+     * @param row    the rowID for which this field belongs to.
+     * @return the decoded field value.
+     */
     private static Object decodeCell(byte[] column, Attribute.Type type, String row) {
         Object output = null;
         switch (type) {
@@ -261,6 +333,13 @@ public class HBaseTableUtils {
         return output;
     }
 
+    /**
+     * Method which is used for decoding binary data read from HBase.
+     *
+     * @param bytes the value that was read.
+     * @param row   the rowID for which this field belongs to.
+     * @return the decoded field value.
+     */
     private static Object decodeBinaryData(byte[] bytes, String row) {
         try (ByteArrayInputStream bis = new ByteArrayInputStream(bytes);
              ObjectInput in = new ObjectInputStream(bis)) {
@@ -270,6 +349,30 @@ public class HBaseTableUtils {
         }
     }
 
+    /**
+     * Method for converting condition expressions to HBase Filter instances.
+     *
+     * @param operations   the list of compare operations in the condition.
+     * @param parameters   the values for any stream variables specified in the condition.
+     * @param columnFamily the column family for which the operations should be done.
+     * @return a FilterList instance which contains all applicable filters.
+     */
+    public static FilterList convertConditionsToFilters(List<BasicCompareOperation> operations,
+                                                        Map<String, Object> parameters, String columnFamily) {
+        FilterList filterList = new FilterList();
+        operations.stream().map(operation -> initializeFilter(operation, parameters, columnFamily))
+                .forEach(filterList::addFilter);
+        return filterList;
+    }
+
+    /**
+     * Method which initializes a single filter for a given condition.
+     *
+     * @param operation    a particular compare operation.
+     * @param parameters   the values for any stream variables specified in the operation.
+     * @param columnFamily the column family for which the operation should be done.
+     * @return an HBase Filter instance.
+     */
     private static Filter initializeFilter(BasicCompareOperation operation, Map<String, Object> parameters,
                                            String columnFamily) {
         Operand operand1 = operation.getOperand1();
@@ -307,14 +410,12 @@ public class HBaseTableUtils {
         return filter;
     }
 
-    public static FilterList convertConditionsToFilters(List<BasicCompareOperation> operations,
-                                                        Map<String, Object> parameters, String columnFamily) {
-        FilterList filterList = new FilterList();
-        operations.stream().map(operation -> initializeFilter(operation, parameters, columnFamily))
-                .forEach(filterList::addFilter);
-        return filterList;
-    }
-
+    /**
+     * Utility method for transforming operators from Siddhi syntax to HBase compare.
+     *
+     * @param operator the Siddhi compare operator.
+     * @return an HBase compare operator.
+     */
     private static CompareFilter.CompareOp convertOperator(Compare.Operator operator) {
         CompareFilter.CompareOp output = CompareFilter.CompareOp.NO_OP;
         switch (operator) {
@@ -340,6 +441,11 @@ public class HBaseTableUtils {
         return output;
     }
 
+    /**
+     * Method that can be used for quietly closing a closeable without having to worry about post-closure exceptions.
+     *
+     * @param closeable
+     */
     public static void closeQuietly(Closeable closeable) {
         try {
             if (closeable != null) {

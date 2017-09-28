@@ -21,7 +21,6 @@ import org.wso2.siddhi.core.util.collection.operator.CompiledCondition;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * Implementation class of {@link CompiledCondition} corresponding to the HBase Event Table.
@@ -65,9 +64,4 @@ public class HBaseCompiledCondition implements CompiledCondition {
         return allKeyEquals;
     }
 
-    public String toString() {
-        return operations.stream()
-                .map(Object::toString)
-                .collect(Collectors.joining(", "));
-    }
 }
