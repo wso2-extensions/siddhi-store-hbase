@@ -66,13 +66,13 @@ public class UpdateHBaseTableTestCase {
         log.info("updateFromTableTest1");
         SiddhiManager siddhiManager = new SiddhiManager();
         String streams = "" +
-                "define stream StockStream (symbol string, price double, volume long); " +
-                "define stream UpdateStockStream (symbol string, price double, volume long); " +
+                "define stream StockStream (symbol string, price string, volume long); " +
+                "define stream UpdateStockStream (symbol string, price string, volume long); " +
                 "@Store(type=\"hbase\", table.name=\"" + TABLE_NAME + "\", column.family=\"" + COLUMN_FAMILY + "\", " +
                 "hbase.zookeeper.quorum=\"" + ZK_QUORUM + "\", hbase.zookeeper.property.clientPort=\""
                 + ZK_CLIENT_PORT + "\")" +
                 "@PrimaryKey(\"symbol\")" +
-                "define table StockTable (symbol string, price double, volume long); ";
+                "define table StockTable (symbol string, price string, volume long); ";
 
         String query = "" +
                 "@info(name = 'query1')\n" +
@@ -89,10 +89,10 @@ public class UpdateHBaseTableTestCase {
         InputHandler updateStockStream = siddhiAppRuntime.getInputHandler("UpdateStockStream");
         siddhiAppRuntime.start();
 
-        stockStream.send(new Object[]{"WSO2", 55.6, 100L});
-        stockStream.send(new Object[]{"IBM", 75.6, 100L});
-        stockStream.send(new Object[]{"WSO2", 57.6, 100L});
-        updateStockStream.send(new Object[]{"IBM", 57.6, 100L});
+        stockStream.send(new Object[]{"WSO2", "55.6", 100L});
+        stockStream.send(new Object[]{"IBM", "75.6", 100L});
+        stockStream.send(new Object[]{"WSO2", "57.6", 100L});
+        updateStockStream.send(new Object[]{"IBM", "57.6", 100L});
         Thread.sleep(1000);
 
         long totalRowsInTable = HBaseTableTestUtils.getRowsInTable(TABLE_NAME, COLUMN_FAMILY);

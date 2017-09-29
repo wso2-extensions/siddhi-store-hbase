@@ -19,14 +19,15 @@
 
 <!DOCTYPE suite SYSTEM "http://testng.org/testng-1.0.dtd" >
 
-<suite name="Generic Integration test suite">
-    <test name="org.wso2.das">
+<suite name="Siddhi HBase Store test suite">
+    <test name="org.wso2.extension.siddhi.store.hbase">
         <classes>
             <class name="org.wso2.extension.siddhi.store.hbase.DefineHBaseTableTestCase"/>
             <class name="org.wso2.extension.siddhi.store.hbase.InsertIntoHBaseTableTestCase"/>
             <class name="org.wso2.extension.siddhi.store.hbase.ReadFromHBaseTableTestCase"/>
             <class name="org.wso2.extension.siddhi.store.hbase.DeleteFromHBaseTableTestCase"/>
             <class name="org.wso2.extension.siddhi.store.hbase.UpdateHBaseTableTestCase"/>
+            <class name="org.wso2.extension.siddhi.store.hbase.JoinHBaseTableTestCase"/>
         </classes>
     </test>
 </suite>
