@@ -227,9 +227,14 @@ public class HBaseEventTable extends AbstractRecordTable {
         if (((HBaseCompiledCondition) compiledCondition).isAllKeyEquals()) {
             this.putRecords(addingRecords);
         } else if (!((HBaseCompiledCondition) compiledCondition).isReadOnlyCondition()) {
+            log.error("The HBase Table extension supports comparison operations for " +
+                    "record read operations only. Please check your query and try again.");
             throw new OperationNotSupportedException("The HBase Table extension supports comparison operations for " +
                     "record read operations only. Please check your query and try again.");
         } else {
+            log.error("The HBase Table extension requires that UPDATE OR INSERT " +
+                    "operations have all primary key entries to be present in the query in EQUALS form. " +
+                    "Please check your query and try again");
             throw new OperationNotSupportedException("The HBase Table extension requires that UPDATE OR INSERT " +
                     "operations have all primary key entries to be present in the query in EQUALS form. " +
                     "Please check your query and try again");
@@ -237,6 +242,7 @@ public class HBaseEventTable extends AbstractRecordTable {
     }
 
     @Override
+
     protected CompiledCondition compileCondition(ExpressionBuilder expressionBuilder) {
         HBaseExpressionVisitor visitor = new HBaseExpressionVisitor(this.primaryKeys);
         expressionBuilder.build(visitor);
@@ -294,12 +300,16 @@ public class HBaseEventTable extends AbstractRecordTable {
         tableDescriptor.addFamily(columnFamilyDescriptor);
         try (Admin admin = this.connection.getAdmin()) {
             if (admin.tableExists(tableDef)) {
-                log.debug("Table " + tableName + " already exists.");
+                if (log.isDebugEnabled()) {
+                    log.debug("Table " + tableName + " already exists.");
+                }
                 try (Table table = this.connection.getTable(TableName.valueOf(this.tableName))) {
                     HTableDescriptor descriptor1 = table.getTableDescriptor();
                     if (descriptor1.hasFamily(Bytes.toBytes(this.columnFamily))) {
-                        log.debug("Table " + tableName + " already contains column family "
-                                + this.columnFamily + ".");
+                        if (log.isDebugEnabled()) {
+                            log.debug("Table " + tableName + " already contains column family "
+                                    + this.columnFamily + ".");
+                        }
                     } else {
                         admin.addColumn(tableDef, columnFamilyDescriptor);
                     }
@@ -307,7 +317,9 @@ public class HBaseEventTable extends AbstractRecordTable {
                 }
             }
             admin.createTable(tableDescriptor);
-            log.debug("Table " + tableName + " created with column family " + this.columnFamily + ".");
+            if (log.isDebugEnabled()) {
+                log.debug("Table " + tableName + " created with column family " + this.columnFamily + ".");
+            }
         } catch (IOException e) {
             throw new HBaseTableException("Error creating table " + tableName + " : " + e.getMessage(), e);
         }

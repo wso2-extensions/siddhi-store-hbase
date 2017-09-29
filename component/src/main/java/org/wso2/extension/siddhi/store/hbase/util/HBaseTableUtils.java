@@ -444,7 +444,7 @@ public class HBaseTableUtils {
     /**
      * Method that can be used for quietly closing a closeable without having to worry about post-closure exceptions.
      *
-     * @param closeable
+     * @param closeable the closeable that should be closed quietly.
      */
     public static void closeQuietly(Closeable closeable) {
         try {

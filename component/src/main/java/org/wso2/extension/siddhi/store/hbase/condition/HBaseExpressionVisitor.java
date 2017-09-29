@@ -114,6 +114,7 @@ public class HBaseExpressionVisitor extends BaseExpressionVisitor {
         }
         // Check if the only condition passed by Siddhi to this level is boolean TRUE (i.e. there are no conditions).
         // In this case, all other conditions should be ignored.
+        //TODO improvement: differentiate between no condition and AND TRUE
         if (this.atomicCondition) {
             this.compareOps.clear();
             this.allKeyEquals = false;
@@ -121,6 +122,10 @@ public class HBaseExpressionVisitor extends BaseExpressionVisitor {
     }
 
     public void beginVisitCompare(Compare.Operator operator) {
+        // Checking if atomicCondition
+        if (this.atomicCondition) {
+            this.atomicCondition = false;
+        }
         if (operator != Compare.Operator.EQUAL) {
             this.readOnlyCondition = true;
         }
@@ -170,7 +175,8 @@ public class HBaseExpressionVisitor extends BaseExpressionVisitor {
     }
 
     public void endVisitConstant(Object value, Attribute.Type type) {
-        if (this.currentOperation == null && type == Attribute.Type.BOOL && value.equals(Boolean.TRUE)) {
+        if (this.compareOps.size() == 0 && this.currentOperation == null
+                && type == Attribute.Type.BOOL && value.equals(Boolean.TRUE)) {
             // Siddhi returns "true" when there are no conditions. Remove any and all conditions if this is the case.
             // This removal operation will be done during pre-processing the condition prior to compilation end.
             this.atomicCondition = true;
