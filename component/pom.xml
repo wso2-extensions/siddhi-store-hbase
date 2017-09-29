@@ -115,7 +115,7 @@
 
     <properties>
         <!--<mavan.findbugsplugin.exclude.file>../findbugs-exclude.xml</mavan.findbugsplugin.exclude.file>-->
-        <skip.surefire.test>false</skip.surefire.test>
+        <skip.surefire.test>true</skip.surefire.test>
     </properties>
 
 </project>
