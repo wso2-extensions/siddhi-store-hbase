@@ -23,8 +23,9 @@ import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.ResultScanner;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.client.Table;
-import org.apache.hadoop.hbase.filter.Filter;
+import org.apache.hadoop.hbase.filter.FilterList;
 import org.apache.hadoop.hbase.util.Bytes;
+import org.wso2.extension.siddhi.store.hbase.condition.BasicCompareOperation;
 import org.wso2.extension.siddhi.store.hbase.condition.HBaseCompiledCondition;
 import org.wso2.extension.siddhi.store.hbase.exception.HBaseTableException;
 import org.wso2.extension.siddhi.store.hbase.util.HBaseTableUtils;
@@ -35,7 +36,13 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
+/**
+ * A closeable iterator which is responsible for retrieving values from the HBase instance when there are no primary
+ * keys specified in the Siddhi table definition. In this case, a  normal sequential scan is initiated, with the
+ * conditions specified converted into HBase Filters.
+ */
 public class HBaseScanIterator implements RecordIterator<Object[]> {
 
     private Iterator<Result> resultIterator = Collections.emptyIterator();
@@ -44,12 +51,12 @@ public class HBaseScanIterator implements RecordIterator<Object[]> {
     private List<Attribute> schema;
     private Table table;
 
-    public HBaseScanIterator(String tableName, String columnFamily, HBaseCompiledCondition compiledCondition,
-                             Connection connection, List<Attribute> schema) {
-        this.tableName = tableName;
+    public HBaseScanIterator(Map<String, Object> findConditionParameterMap, String tableName, String columnFamily,
+                             HBaseCompiledCondition compiledCondition, Connection connection, List<Attribute> schema) {
         this.columnFamily = columnFamily;
+        this.tableName = tableName;
         this.schema = schema;
-        List<Filter> conditions = compiledCondition.getConditions();
+        List<BasicCompareOperation> conditions = compiledCondition.getOperations();
         TableName finalName = TableName.valueOf(tableName);
         try {
             this.table = connection.getTable(finalName);
@@ -57,9 +64,14 @@ public class HBaseScanIterator implements RecordIterator<Object[]> {
             throw new HBaseTableException("The table '" + tableName + "' could not be initialized for reading: "
                     + e.getMessage(), e);
         }
-        Scan scan = new Scan();
-        scan.addFamily(Bytes.toBytes(columnFamily));
-        conditions.forEach(scan::setFilter);
+        // Construct a list of HBase filters and apply them to the scan operation.
+        FilterList filterList = HBaseTableUtils.convertConditionsToFilters(
+                conditions, findConditionParameterMap, this.columnFamily);
+        Scan scan = new Scan()
+                .addFamily(Bytes.toBytes(columnFamily));
+        if (filterList.getFilters().size() > 0) {
+            scan.setFilter(filterList);
+        }
         try {
             ResultScanner scanner = table.getScanner(scan);
             this.resultIterator = scanner.iterator();
@@ -86,11 +98,13 @@ public class HBaseScanIterator implements RecordIterator<Object[]> {
         }
         Result currentResult = this.resultIterator.next();
         byte[] rowId = currentResult.getRow();
-        Object[] record = HBaseTableUtils.constructRecord(Bytes.toString(rowId), this.columnFamily, currentResult, this.schema);
+        Object[] record = HBaseTableUtils.constructRecord(Bytes.toString(rowId), this.columnFamily, currentResult,
+                this.schema);
         if (record != null && record.length > 0) {
             return record;
         } else {
-            throw new HBaseTableException("Invalid data found on row '" + Bytes.toString(rowId) + "' on table '" + this.tableName + "'.");
+            throw new HBaseTableException("Invalid data found on row '" + Bytes.toString(rowId) + "' on table '"
+                    + this.tableName + "'.");
         }
     }
 

@@ -17,9 +17,11 @@
 */
 package org.wso2.extension.siddhi.store.hbase.util;
 
+/**
+ * Class for maintaining constants used by the HBase table implementation.
+ */
 public class HBaseEventTableConstants {
 
-    public static final String HBASE_BATCH_SIZE = "hbase.batchSize";
     public static final String ANNOTATION_ELEMENT_TABLE_NAME = "table.name";
     public static final String ANNOTATION_ELEMENT_CF_NAME = "column.family";
     public static final String DEFAULT_CF_NAME = "wso2.sp";

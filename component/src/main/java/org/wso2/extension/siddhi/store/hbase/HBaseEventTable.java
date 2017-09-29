@@ -27,14 +27,23 @@ import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.Admin;
 import org.apache.hadoop.hbase.client.Connection;
 import org.apache.hadoop.hbase.client.ConnectionFactory;
+import org.apache.hadoop.hbase.client.Delete;
+import org.apache.hadoop.hbase.client.Get;
 import org.apache.hadoop.hbase.client.Put;
+import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.Table;
+import org.apache.hadoop.hbase.filter.FilterList;
 import org.apache.hadoop.hbase.util.Bytes;
+import org.wso2.extension.siddhi.store.hbase.condition.BasicCompareOperation;
 import org.wso2.extension.siddhi.store.hbase.condition.HBaseCompiledCondition;
+import org.wso2.extension.siddhi.store.hbase.condition.HBaseExpressionVisitor;
 import org.wso2.extension.siddhi.store.hbase.exception.HBaseTableException;
-import org.wso2.extension.siddhi.store.hbase.iterator.HBaseGetIterator;
 import org.wso2.extension.siddhi.store.hbase.iterator.HBaseScanIterator;
 import org.wso2.extension.siddhi.store.hbase.util.HBaseTableUtils;
+import org.wso2.siddhi.annotation.Example;
+import org.wso2.siddhi.annotation.Extension;
+import org.wso2.siddhi.annotation.Parameter;
+import org.wso2.siddhi.annotation.util.DataType;
 import org.wso2.siddhi.core.exception.ConnectionUnavailableException;
 import org.wso2.siddhi.core.exception.OperationNotSupportedException;
 import org.wso2.siddhi.core.table.record.AbstractRecordTable;
@@ -50,107 +59,200 @@ import org.wso2.siddhi.query.api.definition.TableDefinition;
 import org.wso2.siddhi.query.api.util.AnnotationHelper;
 
 import java.io.IOException;
-import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static org.wso2.extension.siddhi.store.hbase.util.HBaseEventTableConstants.ANNOTATION_ELEMENT_CF_NAME;
 import static org.wso2.extension.siddhi.store.hbase.util.HBaseEventTableConstants.ANNOTATION_ELEMENT_TABLE_NAME;
 import static org.wso2.extension.siddhi.store.hbase.util.HBaseEventTableConstants.DEFAULT_CF_NAME;
-import static org.wso2.extension.siddhi.store.hbase.util.HBaseEventTableConstants.HBASE_BATCH_SIZE;
 import static org.wso2.siddhi.core.util.SiddhiConstants.ANNOTATION_STORE;
 
+/**
+ * Class representing the HBase Event Table implementation.
+ */
+@Extension(
+        name = "hbase",
+        namespace = "store",
+        description = "This extension assigns data sources and connection instructions to event tables. It also " +
+                "implements read write operations on connected datasources",
+        parameters = {
+                @Parameter(name = "any.hbase.property",
+                        description = "Any property that is specify-able for HBase connectivity in hbase-site.xml is" +
+                                "also accepted by the HBase Store implementation.",
+                        type = {DataType.STRING}),
+                @Parameter(name = "table.name",
+                        description = "The name with which the event table should be persisted in the store. If no " +
+                                "name is specified via this parameter, the event table is persisted with the same " +
+                                "name as the Siddhi table.",
+                        type = {DataType.STRING},
+                        optional = true,
+                        defaultValue = "The table name defined in the Siddhi App query."),
+                @Parameter(name = "column.family",
+                        description = "The number of characters that the values for fields of the `STRING` type in " +
+                                "the table definition must contain. If this is not specified, the default number of " +
+                                "characters specific to the database type is considered.",
+                        type = {DataType.STRING},
+                        optional = true,
+                        defaultValue = "'wso2.sp'")
+        },
+        examples = {
+                @Example(
+                        syntax = "define stream StockStream (symbol string, price float, volume long); " +
+                                "@Store(type=\"hbase\", table.name=\"StockTable\", column.family=\"StockCF\", " +
+                                "hbase.zookeeper.quorum=\"localhost\", hbase.zookeeper.property.clientPort=\"2181\")" +
+                                "define table StockTable (symbol string, price float, volume long);",
+                        description = "The above example creates an event table named `StockTable` with a column " +
+                                "family `StockCF` on the HBase instance if it does not already exist (with 3 " +
+                                "attributes named `symbol`, `price`, and `volume` of the types types `string`, " +
+                                "`float` and `long` respectively). The connection is made as specified by the " +
+                                "parameters configured for the '@Store' annotation. The `symbol` attribute is " +
+                                "considered a unique field, and the HBase Row IDs will be as this field's values"
+                )
+        }
+)
 public class HBaseEventTable extends AbstractRecordTable {
 
     private static final Log log = LogFactory.getLog(HBaseEventTable.class);
 
-    private ConfigReader configReader;
     private Connection connection;
     private List<Attribute> schema;
+    private List<Attribute> primaryKeys;
+    private List<Integer> primaryKeyOrdinals;
     private Annotation storeAnnotation;
-    private Integer[] primaryKeyOrdinals;
     private String tableName;
     private String columnFamily;
     private boolean noKeys;
-    private int batchSize;
 
     @Override
     protected void init(TableDefinition tableDefinition, ConfigReader configReader) {
         this.schema = tableDefinition.getAttributeList();
         this.storeAnnotation = AnnotationHelper.getAnnotation(ANNOTATION_STORE, tableDefinition.getAnnotations());
-        Annotation primaryKeys = AnnotationHelper.getAnnotation(SiddhiConstants.ANNOTATION_PRIMARY_KEY,
+        Annotation primaryKeyAnnotation = AnnotationHelper.getAnnotation(SiddhiConstants.ANNOTATION_PRIMARY_KEY,
                 tableDefinition.getAnnotations());
         String tableName = storeAnnotation.getElement(ANNOTATION_ELEMENT_TABLE_NAME);
         String cfName = storeAnnotation.getElement(ANNOTATION_ELEMENT_CF_NAME);
         this.tableName = HBaseTableUtils.isEmpty(tableName) ? tableDefinition.getId() : tableName;
         this.columnFamily = HBaseTableUtils.isEmpty(cfName) ? DEFAULT_CF_NAME : cfName;
-        this.noKeys = primaryKeys == null;
-        this.primaryKeyOrdinals = HBaseTableUtils.inferPrimaryKeyOrdinals(schema, primaryKeys);
-        if (configReader != null) {
-            this.configReader = configReader;
+
+        if (primaryKeyAnnotation == null) {
+            this.noKeys = true;
+            this.primaryKeyOrdinals = new ArrayList<>();
+            this.primaryKeys = new ArrayList<>();
         } else {
-            this.configReader = new BasicConfigReader();
+            this.primaryKeyOrdinals = HBaseTableUtils.inferPrimaryKeyOrdinals(schema, primaryKeyAnnotation);
+            this.primaryKeys = schema.stream().filter(elem -> this.primaryKeyOrdinals.contains(schema.indexOf(elem)))
+                    .collect(Collectors.toList());
         }
     }
 
     @Override
     protected void add(List<Object[]> records) throws ConnectionUnavailableException {
-        records.forEach(this::insertRecord);
+        if (this.noKeys) {
+            this.putRecords(records);
+        } else {
+            records.forEach(this::checkAndPutRecord);
+        }
     }
 
     @Override
     protected RecordIterator<Object[]> find(Map<String, Object> findConditionParameterMap,
                                             CompiledCondition compiledCondition)
             throws ConnectionUnavailableException {
-        if (noKeys) {
-            return new HBaseScanIterator(this.tableName, this.columnFamily, (HBaseCompiledCondition) compiledCondition,
-                    this.connection, this.schema);
+        boolean allKeysEquals = ((HBaseCompiledCondition) compiledCondition).isAllKeyEquals();
+        if (!noKeys && allKeysEquals) {
+            return this.readSingleRecord(findConditionParameterMap, compiledCondition);
         } else {
-            return new HBaseGetIterator();
+            return new HBaseScanIterator(findConditionParameterMap, this.tableName, this.columnFamily,
+                    (HBaseCompiledCondition) compiledCondition, this.connection, this.schema);
         }
     }
 
     @Override
-    protected boolean contains(Map<String, Object> map, CompiledCondition compiledCondition)
+    protected boolean contains(Map<String, Object> containsConditionParameterMap, CompiledCondition compiledCondition)
             throws ConnectionUnavailableException {
-        if (noKeys) {
-            return new HBaseScanIterator(this.tableName, this.columnFamily, (HBaseCompiledCondition) compiledCondition,
-                    this.connection, this.schema).hasNext();
+        boolean allKeysEquals = ((HBaseCompiledCondition) compiledCondition).isAllKeyEquals();
+        if (!noKeys && allKeysEquals) {
+            return this.readSingleRecord(containsConditionParameterMap, compiledCondition).hasNext();
         } else {
-            return new HBaseGetIterator().hasNext();
+            return new HBaseScanIterator(containsConditionParameterMap, this.tableName, this.columnFamily,
+                    (HBaseCompiledCondition) compiledCondition, this.connection, this.schema).hasNext();
         }
     }
 
     @Override
-    protected void delete(List<Map<String, Object>> list, CompiledCondition compiledCondition)
+    protected void delete(List<Map<String, Object>> deleteConditionParameterMaps,
+                          CompiledCondition compiledCondition)
             throws ConnectionUnavailableException {
-
+        if (noKeys) {
+            throw new OperationNotSupportedException("The HBase Table extension requires the specification of " +
+                    "Primary Keys for delete operations. Please check your query and try again");
+        } else if (((HBaseCompiledCondition) compiledCondition).isReadOnlyCondition()) {
+            throw new OperationNotSupportedException("The HBase Table extension supports comparison operations for " +
+                    "record read operations only. Please check your query and try again.");
+        } else if (!((HBaseCompiledCondition) compiledCondition).isAllKeyEquals()) {
+            throw new OperationNotSupportedException("The HBase Table extension requires that DELETE " +
+                    "operations have all primary key entries to be present in the query in EQUALS form. " +
+                    "Please check your query and try again");
+        } else {
+            List<Delete> deletes = HBaseTableUtils.getKeysForParameters(deleteConditionParameterMaps,
+                    (HBaseCompiledCondition) compiledCondition, primaryKeys)
+                    .stream().map(Bytes::toBytes).map(Delete::new).collect(Collectors.toList());
+            try (Table table = this.connection.getTable(TableName.valueOf(this.tableName))) {
+                table.delete(deletes);
+            } catch (IOException e) {
+                throw new HBaseTableException("Error while performing delete operations on table '"
+                        + this.tableName + "': " + e.getMessage(), e);
+            }
+        }
     }
 
     @Override
-    protected void update(CompiledCondition compiledCondition, List<Map<String, Object>>
-            list, Map<String, CompiledExpression> map, List<Map<String, Object>> list1)
+    protected void update(CompiledCondition compiledCondition, List<Map<String, Object>> updateConditionParameterMaps,
+                          Map<String, CompiledExpression> updateSetExpressions,
+                          List<Map<String, Object>> updateValues)
             throws ConnectionUnavailableException {
-        throw new OperationNotSupportedException("Record update operations are not supported by the HBase Table " +
-                "implementation. Please check your query and try again");
+        this.checkAndUpdateRecords(compiledCondition, updateConditionParameterMaps, updateValues);
     }
 
     @Override
-    protected void updateOrAdd(CompiledCondition compiledCondition, List<Map<String, Object>> list,
-                               Map<String, CompiledExpression> map, List<Map<String, Object>> list1,
-                               List<Object[]> list2) throws ConnectionUnavailableException {
-
+    protected void updateOrAdd(CompiledCondition compiledCondition,
+                               List<Map<String, Object>> updateConditionParameterMaps,
+                               Map<String, CompiledExpression> updateSetExpressions,
+                               List<Map<String, Object>> updateSetParameterMaps, List<Object[]> addingRecords)
+            throws ConnectionUnavailableException {
+        if (((HBaseCompiledCondition) compiledCondition).isAllKeyEquals()) {
+            this.putRecords(addingRecords);
+        } else if (!((HBaseCompiledCondition) compiledCondition).isReadOnlyCondition()) {
+            log.error("The HBase Table extension supports comparison operations for " +
+                    "record read operations only. Please check your query and try again.");
+            throw new OperationNotSupportedException("The HBase Table extension supports comparison operations for " +
+                    "record read operations only. Please check your query and try again.");
+        } else {
+            log.error("The HBase Table extension requires that UPDATE OR INSERT " +
+                    "operations have all primary key entries to be present in the query in EQUALS form. " +
+                    "Please check your query and try again");
+            throw new OperationNotSupportedException("The HBase Table extension requires that UPDATE OR INSERT " +
+                    "operations have all primary key entries to be present in the query in EQUALS form. " +
+                    "Please check your query and try again");
+        }
     }
 
     @Override
+
     protected CompiledCondition compileCondition(ExpressionBuilder expressionBuilder) {
-        return null;
+        HBaseExpressionVisitor visitor = new HBaseExpressionVisitor(this.primaryKeys);
+        expressionBuilder.build(visitor);
+        return new HBaseCompiledCondition(visitor.getConditions(), visitor.isReadOnlyCondition(),
+                visitor.isAllKeyEquals());
     }
 
     @Override
     protected CompiledExpression compileSetAttribute(ExpressionBuilder expressionBuilder) {
-        return null;
+        return new HBaseCompiledCondition();
     }
 
     @Override
@@ -169,7 +271,6 @@ public class HBaseEventTable extends AbstractRecordTable {
             throw new ConnectionUnavailableException("Failed to initialize store for table name '" +
                     this.tableName + "': " + e.getMessage(), e);
         }
-        this.batchSize = Integer.parseInt(this.configReader.readConfig(HBASE_BATCH_SIZE, "5000"));
         this.checkAndCreateTable();
     }
 
@@ -188,35 +289,51 @@ public class HBaseEventTable extends AbstractRecordTable {
         }
     }
 
+    /**
+     * This method will check the HBase instance whether the table specified by the particular Table instance,
+     * and will create it if it doesn't.
+     */
     private void checkAndCreateTable() {
-        TableName table = TableName.valueOf(this.tableName);
-        HTableDescriptor descriptor = new HTableDescriptor(table).addFamily(
-                new HColumnDescriptor(this.columnFamily).setMaxVersions(1));
-        Admin admin = null;
-        try {
-            admin = this.connection.getAdmin();
-            if (admin.tableExists(table)) {
-                log.debug("Table " + tableName + " already exists.");
-                return;
+        TableName tableDef = TableName.valueOf(this.tableName);
+        HTableDescriptor tableDescriptor = new HTableDescriptor(tableDef);
+        HColumnDescriptor columnFamilyDescriptor = new HColumnDescriptor(this.columnFamily).setMaxVersions(1);
+        tableDescriptor.addFamily(columnFamilyDescriptor);
+        try (Admin admin = this.connection.getAdmin()) {
+            if (admin.tableExists(tableDef)) {
+                if (log.isDebugEnabled()) {
+                    log.debug("Table " + tableName + " already exists.");
+                }
+                try (Table table = this.connection.getTable(TableName.valueOf(this.tableName))) {
+                    HTableDescriptor descriptor1 = table.getTableDescriptor();
+                    if (descriptor1.hasFamily(Bytes.toBytes(this.columnFamily))) {
+                        if (log.isDebugEnabled()) {
+                            log.debug("Table " + tableName + " already contains column family "
+                                    + this.columnFamily + ".");
+                        }
+                    } else {
+                        admin.addColumn(tableDef, columnFamilyDescriptor);
+                    }
+                    return;
+                }
             }
-            admin.createTable(descriptor);
-            log.debug("Table " + tableName + " created.");
+            admin.createTable(tableDescriptor);
+            if (log.isDebugEnabled()) {
+                log.debug("Table " + tableName + " created with column family " + this.columnFamily + ".");
+            }
         } catch (IOException e) {
             throw new HBaseTableException("Error creating table " + tableName + " : " + e.getMessage(), e);
-        } finally {
-            HBaseTableUtils.closeQuietly(admin);
         }
     }
 
     /**
      * Method which will perform an insertion operation for a given record, without updating the record's values
      * if it already exists.
-     * Note that this method has to do an RPC call per record due to HBase API limitations. Hence, it is not recommended for high
-     * throughput operations.
+     * Note that this method has to do an RPC call per record due to HBase API limitations. Hence, it is not
+     * recommended for high throughput operations.
      *
      * @param record the record to be inserted into the HBase cluster.
      */
-    private void insertRecord(Object[] record) {
+    private void checkAndPutRecord(Object[] record) {
         String rowID = HBaseTableUtils.generatePrimaryKeyValue(record, this.schema, this.primaryKeyOrdinals);
         Put put = new Put(Bytes.toBytes(rowID));
         byte[] firstColumn = Bytes.toBytes(this.schema.get(0).getName());
@@ -239,16 +356,178 @@ public class HBaseEventTable extends AbstractRecordTable {
         }
     }
 
-    private static class BasicConfigReader implements ConfigReader {
-        @Override
-        public String readConfig(String name, String defaultValue) {
-            return defaultValue;
-        }
-
-        @Override
-        public Map<String, String> getAllConfigs() {
-            return new HashMap<>();
+    /**
+     * Method for inserting a given list of records to the HBase instance
+     *
+     * @param records the list of records to be inserted.
+     */
+    private void putRecords(List<Object[]> records) {
+        List<Put> puts = records.stream().map(record -> {
+            String rowID = HBaseTableUtils.generatePrimaryKeyValue(record, this.schema, this.primaryKeyOrdinals);
+            Put put = new Put(Bytes.toBytes(rowID));
+            for (int i = 0; i < this.schema.size(); i++) {
+                Attribute column = this.schema.get(i);
+                //method: CF, qualifier, value.
+                put.addColumn(Bytes.toBytes(this.columnFamily), Bytes.toBytes(column.getName()),
+                        HBaseTableUtils.encodeCell(column.getType(), record[i], rowID));
+            }
+            return put;
+        }).collect(Collectors.toList());
+        try (Table table = this.connection.getTable(TableName.valueOf(this.tableName))) {
+            table.put(puts);
+        } catch (IOException e) {
+            throw new HBaseTableException("Error while performing insert/update operation on table '" +
+                    this.tableName + "': " + e.getMessage(), e);
         }
     }
 
+    /**
+     * Method that can be used for checking the HBase table if a record exists, and update it if it does.
+     *
+     * @param compiledCondition            the condition for the update operation.
+     * @param updateConditionParameterMaps the parameter maps which contain stream variable values.
+     * @param updateValues                 the values which should be reflected on the table once the update
+     *                                     operation is done.
+     */
+    private void checkAndUpdateRecords(CompiledCondition compiledCondition,
+                                       List<Map<String, Object>> updateConditionParameterMaps,
+                                       List<Map<String, Object>> updateValues) {
+        List<Put> puts = new ArrayList<>();
+        if (((HBaseCompiledCondition) compiledCondition).isAllKeyEquals()) {
+            Iterator<Map<String, Object>> conditionParamIterator = updateConditionParameterMaps.iterator();
+            Iterator<Map<String, Object>> updateSetMapIterator = updateValues.iterator();
+            while (conditionParamIterator.hasNext() && updateSetMapIterator.hasNext()) {
+                Map<String, Object> conditionParameterMap = conditionParamIterator.next();
+                Map<String, Object> updateColumnValues = updateSetMapIterator.next();
+                String rowKey = HBaseTableUtils.inferKeyFromCondition(conditionParameterMap,
+                        (HBaseCompiledCondition) compiledCondition, this.primaryKeys);
+                if (this.checkSingleRecord(conditionParameterMap, compiledCondition)) {
+                    Put put = new Put(Bytes.toBytes(rowKey));
+                    for (int i = 0; i < this.schema.size(); i++) {
+                        Attribute attribute = this.schema.get(i);
+                        if (updateColumnValues.containsKey(attribute.getName())) {
+                            // the incoming update data contains the column's new value.
+                            if (this.primaryKeyOrdinals.contains(i)) {
+                                /*let the user know it's not possible to change values defined as primary keys since
+                                it could mean changing the row ID.*/
+                                throw new OperationNotSupportedException("The HBase Table extension does not support" +
+                                        " updating of a record's primary key. Please check your query and try again");
+                            } else {
+                                put.addColumn(Bytes.toBytes(this.columnFamily), Bytes.toBytes(attribute.getName()),
+                                        HBaseTableUtils.encodeCell(attribute.getType(),
+                                                updateColumnValues.get(attribute.getName()), rowKey));
+                                puts.add(put);
+                            }
+                        }
+                    }
+                } else {
+                    if (log.isDebugEnabled()) {
+                        log.debug("a record with key '" + rowKey + "' fulfilling the criteria does not exist on " +
+                                "table " + this.tableName + ", hence returning without changes");
+                    }
+                    return;
+                }
+            }
+        } else {
+            throw new OperationNotSupportedException("The HBase Table extension requires that UPDATE " +
+                    "operations have all primary key entries to be present in the query in EQUALS form. " +
+                    "Please check your query and try again");
+        }
+        try (Table table = this.connection.getTable(TableName.valueOf(this.tableName))) {
+            if (puts.size() > 0) {
+                table.put(puts);
+            }
+        } catch (IOException e) {
+            throw new HBaseTableException("Error while performing insert/update operation on table '" +
+                    this.tableName + "': " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Method for reading a single record from the HBase table. Here, the record will be uniquely identified by its
+     * rowID.
+     *
+     * @param conditionParameterMap the parameter maps with any stream variable values.
+     * @param compiledCondition     the condition that should be used when reading the record.
+     * @return an iterator which facilitates the retrieval of the matching record.
+     */
+    private RecordIterator<Object[]> readSingleRecord(Map<String, Object> conditionParameterMap,
+                                                      CompiledCondition compiledCondition) {
+        Table table;
+        List<Object[]> records = new ArrayList<>();
+        List<BasicCompareOperation> operations = ((HBaseCompiledCondition) compiledCondition).getOperations();
+        String rowID = HBaseTableUtils.inferKeyFromCondition(conditionParameterMap,
+                (HBaseCompiledCondition) compiledCondition, this.primaryKeys);
+        Get get = new Get(Bytes.toBytes(rowID));
+        FilterList filterList = HBaseTableUtils.convertConditionsToFilters(operations, conditionParameterMap,
+                this.columnFamily);
+        if (filterList.getFilters().size() > 0) {
+            get.setFilter(filterList);
+        }
+        try {
+            table = this.connection.getTable(TableName.valueOf(this.tableName));
+            Result result = table.get(get);
+            records.add(HBaseTableUtils.constructRecord(rowID, this.columnFamily, result, this.schema));
+        } catch (IOException e) {
+            if (log.isDebugEnabled()) {
+                log.debug("Error while performing read operation on table '" + this.tableName + "' on row '"
+                        + rowID + "' :" + e.getMessage());
+            }
+            throw new HBaseTableException("Error while performing read operation on table '" + this.tableName + "': "
+                    + e.getMessage(), e);
+        }
+        return new HBaseGetIterator(records.iterator(), table);
+    }
+
+    /**
+     * Check the HBase table if a specified record exists.
+     *
+     * @param conditionParameterMap the parameter maps with any stream variable values.
+     * @param compiledCondition     the condition that should be used when reading the record.
+     * @return a boolean on whether or not such a record exists.
+     */
+    private boolean checkSingleRecord(Map<String, Object> conditionParameterMap, CompiledCondition compiledCondition) {
+        Get get = new Get(Bytes.toBytes(HBaseTableUtils.inferKeyFromCondition(conditionParameterMap,
+                (HBaseCompiledCondition) compiledCondition, this.primaryKeys)));
+        try (Table table = this.connection.getTable(TableName.valueOf(this.tableName))) {
+            return table.exists(get);
+        } catch (IOException e) {
+            throw new HBaseTableException("Error while performing check operation on table '" + this.tableName + "': "
+                    + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * An iterator class which can be used to physically read a given known record from the HBase instance.
+     */
+    private static class HBaseGetIterator implements RecordIterator<Object[]> {
+
+        private Iterator<Object[]> internalIterator;
+        Table table;
+
+        HBaseGetIterator(Iterator<Object[]> iterator, Table table) {
+            this.internalIterator = iterator;
+            this.table = table;
+        }
+
+        @Override
+        public void close() throws IOException {
+            HBaseTableUtils.closeQuietly(table);
+        }
+
+        @Override
+        public boolean hasNext() {
+            return this.internalIterator.hasNext();
+        }
+
+        @Override
+        public Object[] next() {
+            return this.internalIterator.next();
+        }
+
+        @Override
+        public void remove() {
+            //Do nothing
+        }
+    }
 }
