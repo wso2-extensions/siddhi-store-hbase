@@ -15,6 +15,6 @@ google_analytics:
 pages:
 - Welcome to WSO2 Siddhi Store HBase: index.md
 - API Docs:
-  - 4.0.0-M12-SNAPSHOT: api/4.0.0-M12-SNAPSHOT.md
+  - 4.0.0-M13-SNAPSHOT: api/4.0.0-M13-SNAPSHOT.md
 - License: license.md
 theme: material
