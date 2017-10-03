@@ -78,11 +78,11 @@ import static org.wso2.siddhi.core.util.SiddhiConstants.ANNOTATION_STORE;
         name = "hbase",
         namespace = "store",
         description = "This extension assigns data sources and connection instructions to event tables. It also " +
-                "implements read write operations on connected datasources",
+                "implements read write operations on connected datasources.",
         parameters = {
                 @Parameter(name = "any.hbase.property",
-                        description = "Any property that is specify-able for HBase connectivity in hbase-site.xml is" +
-                                "also accepted by the HBase Store implementation.",
+                        description = "Any property that is can be specified for for `HBase` connectivity in " +
+                                "hbase-site.xml is also accepted by the `HBase Store` implementation.",
                         type = {DataType.STRING}),
                 @Parameter(name = "table.name",
                         description = "The name with which the event table should be persisted in the store. If no " +
@@ -90,7 +90,7 @@ import static org.wso2.siddhi.core.util.SiddhiConstants.ANNOTATION_STORE;
                                 "name as the Siddhi table.",
                         type = {DataType.STRING},
                         optional = true,
-                        defaultValue = "The table name defined in the Siddhi App query."),
+                        defaultValue = "The table name defined in the Siddhi Application query."),
                 @Parameter(name = "column.family",
                         description = "The number of characters that the values for fields of the `STRING` type in " +
                                 "the table definition must contain. If this is not specified, the default number of " +
@@ -105,12 +105,12 @@ import static org.wso2.siddhi.core.util.SiddhiConstants.ANNOTATION_STORE;
                                 "@Store(type=\"hbase\", table.name=\"StockTable\", column.family=\"StockCF\", " +
                                 "hbase.zookeeper.quorum=\"localhost\", hbase.zookeeper.property.clientPort=\"2181\")" +
                                 "define table StockTable (symbol string, price float, volume long);",
-                        description = "The above example creates an event table named `StockTable` with a column " +
+                        description = "This query creates an event table named `StockTable` with a column " +
                                 "family `StockCF` on the HBase instance if it does not already exist (with 3 " +
-                                "attributes named `symbol`, `price`, and `volume` of the types types `string`, " +
-                                "`float` and `long` respectively). The connection is made as specified by the " +
+                                "attributes named `symbol`, `price`, and `volume` of the `string`, " +
+                                "`float` and `long` types respectively). The connection is made as specified by the " +
                                 "parameters configured for the '@Store' annotation. The `symbol` attribute is " +
-                                "considered a unique field, and the HBase Row IDs will be as this field's values"
+                                "considered a unique field, and the values for this attribute are the HBase row IDs."
                 )
         }
 )
