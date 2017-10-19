@@ -10,7 +10,7 @@ Find some useful links below:
 
 ## Latest API Docs 
 
-Latest API Docs is <a target="_blank" href="https://wso2-extensions.github.io/siddhi-store-hbase/api/4.0.0-M13-SNAPSHOT">4.0.0-M13-SNAPSHOT</a>.
+Latest API Docs is <a target="_blank" href="https://wso2-extensions.github.io/siddhi-store-hbase/api/4.0.0-M14">4.0.0-M14</a>.
 
 ## Prerequisites
 
@@ -48,7 +48,6 @@ Latest API Docs is <a target="_blank" href="https://wso2-extensions.github.io/si
 
 ## Features
 
-* <a target="_blank" href="https://wso2-extensions.github.io/siddhi-store-hbase/api/4.0.0-M13-SNAPSHOT/#hbase-store">hbase</a> *(<a target="_blank" href="https://wso2.github.io/siddhi/documentation/siddhi-4.0/#stores">Store</a>)*<br><div style="padding-left: 1em;"><p>This extension assigns data sources and connection instructions to event tables. It also implements read write operations on connected datasources.</p></div>
 
 ## How to Contribute
  
