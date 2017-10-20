@@ -10,7 +10,7 @@ Find some useful links below:
 
 ## Latest API Docs 
 
-Latest API Docs is <a target="_blank" href="https://wso2-extensions.github.io/siddhi-store-hbase/api/4.0.0-M14">4.0.0-M14</a>.
+Latest API Docs is <a target="_blank" href="https://wso2-extensions.github.io/siddhi-store-hbase/api/4.0.0-M15">4.0.0-M15</a>.
 
 ## Prerequisites
 
