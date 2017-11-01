@@ -17,6 +17,7 @@ pages:
 - API Docs:
   - 4.0.0-M15: api/4.0.0-M15.md
   - 4.0.0-M14: api/4.0.0-M14.md
+  - 4.0.0: api/4.0.0.md
   - latest: api/latest.md
 - License: license.md
 theme: material
