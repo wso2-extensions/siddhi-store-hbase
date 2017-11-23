@@ -17,7 +17,11 @@
 */
 package org.wso2.extension.siddhi.store.hbase.condition;
 
+import org.apache.hadoop.hbase.filter.Filter;
+import org.apache.hadoop.hbase.filter.SingleColumnValueFilter;
+import org.apache.hadoop.hbase.util.Bytes;
 import org.wso2.extension.siddhi.store.hbase.exception.HBaseTableException;
+import org.wso2.extension.siddhi.store.hbase.util.HBaseTableUtils;
 import org.wso2.siddhi.core.exception.OperationNotSupportedException;
 import org.wso2.siddhi.core.table.record.BaseExpressionVisitor;
 import org.wso2.siddhi.query.api.definition.Attribute;
@@ -39,13 +43,17 @@ public class HBaseExpressionVisitor extends BaseExpressionVisitor {
     private boolean atomicCondition;
     private List<BasicCompareOperation> compareOps;
     private List<String> primaryKeys;
+    private List<Filter> filters;
+    private String columnFamily;
 
     private volatile BasicCompareOperation currentOperation;
 
-    public HBaseExpressionVisitor(List<Attribute> primaryKeys) {
+    public HBaseExpressionVisitor(List<Attribute> primaryKeys, String columnFamily) {
         this.primaryKeys = primaryKeys.stream().map(Attribute::getName).map(String::toLowerCase)
                 .collect(Collectors.toList());
         this.compareOps = new ArrayList<>();
+        this.filters = new ArrayList<>();
+        this.columnFamily = columnFamily;
     }
 
     /**
@@ -78,6 +86,10 @@ public class HBaseExpressionVisitor extends BaseExpressionVisitor {
         return compareOps;
     }
 
+    public List<Filter> getFilters() {
+        return this.filters;
+    }
+
     /**
      * Pre-process given conditions and check if they fall within the compatibility criteria imposed by the HBase API.
      * This involves checking for variable types as well as the boolean conditions above.
@@ -85,6 +97,8 @@ public class HBaseExpressionVisitor extends BaseExpressionVisitor {
     private void preProcessConditions() {
         List<String> equalsWithStoreVariables = new ArrayList<>();
         for (BasicCompareOperation operation : this.compareOps) {
+            //Pre-process at compile time the conditions for which the end value is already known (i.e. constants)
+            this.preProcessFilters(operation, this.columnFamily);
             // Check if both operands are store variables, which may not be allowed.
             if (operation.getOperand1() instanceof Operand.StoreVariable &&
                     operation.getOperand2() instanceof Operand.StoreVariable) {
@@ -116,9 +130,33 @@ public class HBaseExpressionVisitor extends BaseExpressionVisitor {
         // In this case, all other conditions should be ignored.
         //TODO improvement: differentiate between no condition and AND TRUE
         if (this.atomicCondition) {
+            this.filters.clear();
             this.compareOps.clear();
             this.allKeyEquals = false;
         }
+    }
+
+    private void preProcessFilters(BasicCompareOperation operation, String columnFamily) {
+        Operand operand1 = operation.getOperand1();
+        Operand operand2 = operation.getOperand2();
+        Filter filter;
+        byte[] conditionValue;
+        if (operand1 instanceof Operand.Constant) {
+            conditionValue = HBaseTableUtils.encodeCell((operand1).getType(), ((Operand.Constant) operand1).getValue(),
+                    null);
+            filter = new SingleColumnValueFilter(Bytes.toBytes(columnFamily),
+                    Bytes.toBytes(((Operand.StoreVariable) operand2).getName()),
+                    HBaseTableUtils.convertOperator(operation.getOperator()), conditionValue);
+        } else if (operand2 instanceof Operand.Constant) {
+            conditionValue = HBaseTableUtils.encodeCell((operand2).getType(), ((Operand.Constant) operand2).getValue(),
+                    null);
+            filter = new SingleColumnValueFilter(Bytes.toBytes(columnFamily),
+                    Bytes.toBytes(((Operand.StoreVariable) operand1).getName()),
+                    HBaseTableUtils.convertOperator(operation.getOperator()), conditionValue);
+        } else {
+            return;
+        }
+        this.filters.add(filter);
     }
 
     public void beginVisitCompare(Compare.Operator operator) {

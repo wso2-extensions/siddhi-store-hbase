@@ -17,6 +17,7 @@
 */
 package org.wso2.extension.siddhi.store.hbase.condition;
 
+import org.apache.hadoop.hbase.filter.Filter;
 import org.wso2.siddhi.core.util.collection.operator.CompiledCondition;
 
 import java.util.ArrayList;
@@ -30,30 +31,37 @@ import java.util.List;
 public class HBaseCompiledCondition implements CompiledCondition {
 
     private List<BasicCompareOperation> operations;
+    private List<Filter> filters;
 
     private boolean readOnlyCondition;
     private boolean allKeyEquals;
 
-    public HBaseCompiledCondition(List<BasicCompareOperation> conditions, boolean readOnlyCondition,
-                                  boolean allKeyEquals) {
+    public HBaseCompiledCondition(List<BasicCompareOperation> conditions, List<Filter> filters,
+                                  boolean readOnlyCondition, boolean allKeyEquals) {
         this.operations = conditions;
+        this.filters = filters;
         this.readOnlyCondition = readOnlyCondition;
         this.allKeyEquals = allKeyEquals;
     }
 
     public HBaseCompiledCondition() {
         this.operations = new ArrayList<>();
+        this.filters = new ArrayList<>();
         this.readOnlyCondition = false;
         this.allKeyEquals = false;
     }
 
     @Override
     public CompiledCondition cloneCompiledCondition(String s) {
-        return new HBaseCompiledCondition(this.operations, this.readOnlyCondition, this.allKeyEquals);
+        return new HBaseCompiledCondition(this.operations, this.filters, this.readOnlyCondition, this.allKeyEquals);
     }
 
     public List<BasicCompareOperation> getOperations() {
         return operations;
+    }
+
+    public List<Filter> getFilters() {
+        return filters;
     }
 
     public boolean isReadOnlyCondition() {

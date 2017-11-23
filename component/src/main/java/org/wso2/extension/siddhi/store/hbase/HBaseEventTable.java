@@ -244,9 +244,9 @@ public class HBaseEventTable extends AbstractRecordTable {
     @Override
 
     protected CompiledCondition compileCondition(ExpressionBuilder expressionBuilder) {
-        HBaseExpressionVisitor visitor = new HBaseExpressionVisitor(this.primaryKeys);
+        HBaseExpressionVisitor visitor = new HBaseExpressionVisitor(this.primaryKeys, this.columnFamily);
         expressionBuilder.build(visitor);
-        return new HBaseCompiledCondition(visitor.getConditions(), visitor.isReadOnlyCondition(),
+        return new HBaseCompiledCondition(visitor.getConditions(), visitor.getFilters(), visitor.isReadOnlyCondition(),
                 visitor.isAllKeyEquals());
     }
 
@@ -461,6 +461,7 @@ public class HBaseEventTable extends AbstractRecordTable {
         Get get = new Get(Bytes.toBytes(rowID));
         FilterList filterList = HBaseTableUtils.convertConditionsToFilters(operations, conditionParameterMap,
                 this.columnFamily);
+        ((HBaseCompiledCondition) compiledCondition).getFilters().forEach(filterList::addFilter);
         if (filterList.getFilters().size() > 0) {
             get.setFilter(filterList);
         }
