@@ -49,6 +49,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -360,7 +361,9 @@ public class HBaseTableUtils {
     public static FilterList convertConditionsToFilters(List<BasicCompareOperation> operations,
                                                         Map<String, Object> parameters, String columnFamily) {
         FilterList filterList = new FilterList();
-        operations.stream().map(operation -> initializeFilter(operation, parameters, columnFamily))
+        operations.stream()
+                .map(operation -> initializeFilter(operation, parameters, columnFamily))
+                .filter(Objects::nonNull)
                 .forEach(filterList::addFilter);
         return filterList;
     }
@@ -379,27 +382,20 @@ public class HBaseTableUtils {
         Operand operand2 = operation.getOperand2();
         Filter filter;
         if (operand1 instanceof StoreVariable) {
-            byte[] conditionValue = null;
-
             if (operand2 instanceof Constant) {
-                conditionValue = encodeCell((operand2).getType(),
-                        ((Constant) operand2).getValue(), null);
-            } else if (operand2 instanceof StreamVariable) {
-                conditionValue = encodeCell((operand2).getType(),
-                        parameters.get(((StreamVariable) operand2).getName()), null);
+                return null;
             }
+            byte[] conditionValue = encodeCell((operand2).getType(),
+                    parameters.get(((StreamVariable) operand2).getName()), null);
             filter = new SingleColumnValueFilter(Bytes.toBytes(columnFamily),
                     Bytes.toBytes(((StoreVariable) operand1).getName()),
                     convertOperator(operation.getOperator()), conditionValue);
         } else if (operand2 instanceof StoreVariable) {
-            byte[] conditionValue = null;
             if (operand1 instanceof Constant) {
-                conditionValue = encodeCell((operand1).getType(),
-                        ((Constant) operand1).getValue(), null);
-            } else if (operand1 instanceof StreamVariable) {
-                conditionValue = encodeCell((operand1).getType(),
-                        parameters.get(((StreamVariable) operand1).getName()), null);
+                return null;
             }
+            byte[] conditionValue = encodeCell((operand1).getType(),
+                    parameters.get(((StreamVariable) operand1).getName()), null);
             filter = new SingleColumnValueFilter(Bytes.toBytes(columnFamily),
                     Bytes.toBytes(((StoreVariable) operand2).getName()),
                     convertOperator(operation.getOperator()), conditionValue);
@@ -416,7 +412,7 @@ public class HBaseTableUtils {
      * @param operator the Siddhi compare operator.
      * @return an HBase compare operator.
      */
-    private static CompareFilter.CompareOp convertOperator(Compare.Operator operator) {
+    public static CompareFilter.CompareOp convertOperator(Compare.Operator operator) {
         CompareFilter.CompareOp output = CompareFilter.CompareOp.NO_OP;
         switch (operator) {
             case LESS_THAN:

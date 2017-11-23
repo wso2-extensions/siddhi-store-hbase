@@ -67,6 +67,7 @@ public class HBaseScanIterator implements RecordIterator<Object[]> {
         // Construct a list of HBase filters and apply them to the scan operation.
         FilterList filterList = HBaseTableUtils.convertConditionsToFilters(
                 conditions, findConditionParameterMap, this.columnFamily);
+        compiledCondition.getFilters().forEach(filterList::addFilter);
         Scan scan = new Scan()
                 .addFamily(Bytes.toBytes(columnFamily));
         if (filterList.getFilters().size() > 0) {
