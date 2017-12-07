@@ -52,7 +52,7 @@ public class HBaseCompiledCondition implements CompiledCondition {
     }
 
     @Override
-    public CompiledCondition cloneCompiledCondition(String s) {
+    public CompiledCondition cloneCompilation(String s) {
         return new HBaseCompiledCondition(this.operations, this.filters, this.readOnlyCondition, this.allKeyEquals);
     }
 
@@ -71,5 +71,4 @@ public class HBaseCompiledCondition implements CompiledCondition {
     public boolean isAllKeyEquals() {
         return allKeyEquals;
     }
-
 }
