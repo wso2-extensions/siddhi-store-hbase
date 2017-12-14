@@ -27,10 +27,10 @@ import org.wso2.extension.siddhi.store.hbase.util.HBaseTableTestUtils;
 import org.wso2.siddhi.core.SiddhiAppRuntime;
 import org.wso2.siddhi.core.SiddhiManager;
 import org.wso2.siddhi.core.event.Event;
-import org.wso2.siddhi.core.exception.SiddhiAppCreationException;
 import org.wso2.siddhi.core.query.output.callback.QueryCallback;
 import org.wso2.siddhi.core.stream.input.InputHandler;
 import org.wso2.siddhi.core.util.EventPrinter;
+import org.wso2.siddhi.query.compiler.exception.SiddhiParserException;
 
 import static org.wso2.extension.siddhi.store.hbase.util.HBaseTableTestUtils.COLUMN_FAMILY;
 import static org.wso2.extension.siddhi.store.hbase.util.HBaseTableTestUtils.TABLE_NAME;
@@ -133,7 +133,7 @@ public class ReadFromHBaseTableTestCase {
         siddhiAppRuntime.shutdown();
     }
 
-    @Test(expectedExceptions = SiddhiAppCreationException.class, dependsOnMethods = "readEventHBaseTableTestCase1")
+    @Test(expectedExceptions = SiddhiParserException.class, dependsOnMethods = "readEventHBaseTableTestCase1")
     public void readEventHBaseTableTestCase2() throws InterruptedException {
         //Read events from a non existing HBase table unsuccessfully
         log.info("readEventHBaseTableTestCase2");
@@ -156,7 +156,7 @@ public class ReadFromHBaseTableTestCase {
         siddhiAppRuntime.shutdown();
     }
 
-    @Test(expectedExceptions = SiddhiAppCreationException.class, dependsOnMethods = "readEventHBaseTableTestCase2")
+    @Test(expectedExceptions = SiddhiParserException.class, dependsOnMethods = "readEventHBaseTableTestCase2")
     public void readEventHBaseTableTestCase3() throws InterruptedException {
         //Read events from a HBase table through a non existing stream unsuccessfully
         log.info("readEventHBaseTableTestCase3");
