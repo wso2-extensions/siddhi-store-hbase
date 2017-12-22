@@ -27,7 +27,7 @@
 
     <groupId>org.wso2.extension.siddhi.store.hbase</groupId>
     <artifactId>siddhi-store-hbase-parent</artifactId>
-    <version>4.0.6-SNAPSHOT</version>
+    <version>4.0.7-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>WSO2 Siddhi Store Extension - HBase Aggregator Pom</name>
     <url>http://wso2.org</url>
@@ -46,8 +46,8 @@
     </profiles>
 
     <properties>
-        <siddhi.store.hbase.version>4.0.6-SNAPSHOT</siddhi.store.hbase.version>
-        <siddhi.version>4.0.0-beta19</siddhi.version>
+        <siddhi.store.hbase.version>4.0.7-SNAPSHOT</siddhi.store.hbase.version>
+        <siddhi.version>4.0.4</siddhi.version>
         <hbase.client.orbit.version>1.3.1</hbase.client.orbit.version>
         <log4j.version>1.2.17.wso2v1</log4j.version>
         <testng.version>6.9.10</testng.version>
