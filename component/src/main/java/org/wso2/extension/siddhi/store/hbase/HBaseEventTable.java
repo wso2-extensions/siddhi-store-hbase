@@ -271,10 +271,10 @@ public class HBaseEventTable extends AbstractRecordTable {
             HBaseAdmin.checkHBaseAvailable(config);
             this.connection = ConnectionFactory.createConnection(config);
         } catch (IOException e) {
-            throw new ConnectionUnavailableException("Failed to initialize store for table name" + this.tableName +
+            throw new ConnectionUnavailableException("Failed to initialize store for table name: " + this.tableName +
                     "': " + e.getMessage(), e);
         } catch (ServiceException e) {
-            throw new ConnectionUnavailableException("Failed to initialize store for table name" + this.tableName +
+            throw new ConnectionUnavailableException("Failed to initialize store for table name: " + this.tableName +
                     "': " + e.getMessage(), e);
         }
         this.checkAndCreateTable();
