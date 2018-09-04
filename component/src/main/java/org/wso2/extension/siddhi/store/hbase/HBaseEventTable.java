@@ -1,20 +1,20 @@
 /*
-*  Copyright (c) 2017, WSO2 Inc. (http://www.wso2.org) All Rights Reserved.
-*
-*  WSO2 Inc. licenses this file to you under the Apache License,
-*  Version 2.0 (the "License"); you may not use this file except
-*  in compliance with the License.
-*  You may obtain a copy of the License at
-*
-*    http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing,
-* software distributed under the License is distributed on an
-* "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-* KIND, either express or implied.  See the License for the
-* specific language governing permissions and limitations
-* under the License.
-*/
+ *  Copyright (c) 2017, WSO2 Inc. (http://www.wso2.org) All Rights Reserved.
+ *
+ *  WSO2 Inc. licenses this file to you under the Apache License,
+ *  Version 2.0 (the "License"); you may not use this file except
+ *  in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 package org.wso2.extension.siddhi.store.hbase;
 
 import org.apache.commons.logging.Log;
@@ -29,10 +29,12 @@ import org.apache.hadoop.hbase.client.Connection;
 import org.apache.hadoop.hbase.client.ConnectionFactory;
 import org.apache.hadoop.hbase.client.Delete;
 import org.apache.hadoop.hbase.client.Get;
+import org.apache.hadoop.hbase.client.HBaseAdmin;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.Table;
 import org.apache.hadoop.hbase.filter.FilterList;
+import org.apache.hadoop.hbase.shaded.com.google.protobuf.ServiceException;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.wso2.extension.siddhi.store.hbase.condition.BasicCompareOperation;
 import org.wso2.extension.siddhi.store.hbase.condition.HBaseCompiledCondition;
@@ -258,18 +260,22 @@ public class HBaseEventTable extends AbstractRecordTable {
     @Override
     protected void connect() throws ConnectionUnavailableException {
         Configuration config = HBaseConfiguration.create();
-        storeAnnotation.getElements().stream()
-                .filter(Objects::nonNull)
-                .filter(element -> !(element.getKey().equals(ANNOTATION_ELEMENT_TABLE_NAME)
-                        || element.getKey().equals(ANNOTATION_ELEMENT_CF_NAME)))
-                .filter(element -> !(HBaseTableUtils.isEmpty(element.getKey())
-                        || HBaseTableUtils.isEmpty(element.getValue())))
-                .forEach(element -> config.set(element.getKey(), element.getValue()));
         try {
+            storeAnnotation.getElements().stream()
+                    .filter(Objects::nonNull)
+                    .filter(element -> !(element.getKey().equals(ANNOTATION_ELEMENT_TABLE_NAME)
+                            || element.getKey().equals(ANNOTATION_ELEMENT_CF_NAME)))
+                    .filter(element -> !(HBaseTableUtils.isEmpty(element.getKey())
+                            || HBaseTableUtils.isEmpty(element.getValue())))
+                    .forEach(element -> config.set(element.getKey(), element.getValue()));
+            HBaseAdmin.checkHBaseAvailable(config);
             this.connection = ConnectionFactory.createConnection(config);
         } catch (IOException e) {
-            throw new ConnectionUnavailableException("Failed to initialize store for table name '" +
-                    this.tableName + "': " + e.getMessage(), e);
+            throw new ConnectionUnavailableException("Failed to initialize store for table name: " + this.tableName +
+                    "': " + e.getMessage(), e);
+        } catch (ServiceException e) {
+            throw new ConnectionUnavailableException("Failed to initialize store for table name: " + this.tableName +
+                    "': " + e.getMessage(), e);
         }
         this.checkAndCreateTable();
     }
