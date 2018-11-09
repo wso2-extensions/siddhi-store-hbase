@@ -80,7 +80,9 @@ import static org.wso2.siddhi.core.util.SiddhiConstants.ANNOTATION_STORE;
         name = "hbase",
         namespace = "store",
         description = "This extension assigns data sources and connection instructions to event tables. It also " +
-                "implements read-write operations on connected datasources.",
+                "implements read-write operations on connected datasources. Including one or more primary keys in " +
+                "the event table configuration allows any record to by identified by a unique combination of primary" +
+                " key values. Read-write operations can be performed for the records once they are thus identified.",
         parameters = {
                 @Parameter(name = "any.hbase.property",
                         description = "Any property that can be specified for `HBase` connectivity in " +
@@ -103,9 +105,11 @@ import static org.wso2.siddhi.core.util.SiddhiConstants.ANNOTATION_STORE;
         },
         examples = {
                 @Example(
-                        syntax = "define stream StockStream (symbol string, price float, volume long); " +
+                        syntax = "define stream StockStream (symbol string, price float, volume long); \n" +
                                 "@Store(type=\"hbase\", table.name=\"StockTable\", column.family=\"StockCF\", " +
                                 "hbase.zookeeper.quorum=\"localhost\", hbase.zookeeper.property.clientPort=\"2181\")" +
+                                "\n" +
+                                "@PrimaryKey(symbol) \n" +
                                 "define table StockTable (symbol string, price float, volume long);",
                         description = "This definition creates an event table named `StockTable` with a column " +
                                 "family `StockCF` on the HBase instance if it does not already exist (with 3 " +
