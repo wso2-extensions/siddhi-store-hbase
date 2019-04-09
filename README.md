@@ -10,7 +10,7 @@ Find some useful links below:
 
 ## Latest API Docs 
 
-Latest API Docs is <a target="_blank" href="https://wso2-extensions.github.io/siddhi-store-hbase/api/4.1.0">4.1.0</a>.
+Latest API Docs is <a target="_blank" href="https://wso2-extensions.github.io/siddhi-store-hbase/api/4.1.1">4.1.1</a>.
 
 ## Prerequisites
 
@@ -48,7 +48,7 @@ Latest API Docs is <a target="_blank" href="https://wso2-extensions.github.io/si
 
 ## Features
 
-* <a target="_blank" href="https://wso2-extensions.github.io/siddhi-store-hbase/api/4.1.0/#hbase-store">hbase</a> *<a target="_blank" href="https://wso2.github.io/siddhi/documentation/siddhi-4.0/#store">(Store)</a>*<br><div style="padding-left: 1em;"><p>This extension assigns data sources and connection instructions to event tables. It also implements read-write operations on connected datasources. Including one or more primary keys in the event table configuration allows any record to by identified by a unique combination of primary key values. Read-write operations can be performed for the records once they are thus identified.</p></div>
+* <a target="_blank" href="https://wso2-extensions.github.io/siddhi-store-hbase/api/4.1.1/#hbase-store">hbase</a> *<a target="_blank" href="https://wso2.github.io/siddhi/documentation/siddhi-4.0/#store">(Store)</a>*<br><div style="padding-left: 1em;"><p>This extension assigns data sources and connection instructions to event tables. It also implements read-write operations on connected datasources. Including one or more primary keys in the event table configuration allows any record to by identified by a unique combination of primary key values. Read-write operations can be performed for the records once they are thus identified.</p></div>
 
 ## How to Contribute
  
