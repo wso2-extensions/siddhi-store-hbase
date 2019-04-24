@@ -17,6 +17,23 @@
  */
 package org.wso2.extension.siddhi.store.hbase;
 
+import io.siddhi.annotation.Example;
+import io.siddhi.annotation.Extension;
+import io.siddhi.annotation.Parameter;
+import io.siddhi.annotation.util.DataType;
+import io.siddhi.core.exception.ConnectionUnavailableException;
+import io.siddhi.core.exception.OperationNotSupportedException;
+import io.siddhi.core.table.record.AbstractRecordTable;
+import io.siddhi.core.table.record.ExpressionBuilder;
+import io.siddhi.core.table.record.RecordIterator;
+import io.siddhi.core.util.SiddhiConstants;
+import io.siddhi.core.util.collection.operator.CompiledCondition;
+import io.siddhi.core.util.collection.operator.CompiledExpression;
+import io.siddhi.core.util.config.ConfigReader;
+import io.siddhi.query.api.annotation.Annotation;
+import io.siddhi.query.api.definition.Attribute;
+import io.siddhi.query.api.definition.TableDefinition;
+import io.siddhi.query.api.util.AnnotationHelper;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
@@ -42,23 +59,6 @@ import org.wso2.extension.siddhi.store.hbase.condition.HBaseExpressionVisitor;
 import org.wso2.extension.siddhi.store.hbase.exception.HBaseTableException;
 import org.wso2.extension.siddhi.store.hbase.iterator.HBaseScanIterator;
 import org.wso2.extension.siddhi.store.hbase.util.HBaseTableUtils;
-import org.wso2.siddhi.annotation.Example;
-import org.wso2.siddhi.annotation.Extension;
-import org.wso2.siddhi.annotation.Parameter;
-import org.wso2.siddhi.annotation.util.DataType;
-import org.wso2.siddhi.core.exception.ConnectionUnavailableException;
-import org.wso2.siddhi.core.exception.OperationNotSupportedException;
-import org.wso2.siddhi.core.table.record.AbstractRecordTable;
-import org.wso2.siddhi.core.table.record.ExpressionBuilder;
-import org.wso2.siddhi.core.table.record.RecordIterator;
-import org.wso2.siddhi.core.util.SiddhiConstants;
-import org.wso2.siddhi.core.util.collection.operator.CompiledCondition;
-import org.wso2.siddhi.core.util.collection.operator.CompiledExpression;
-import org.wso2.siddhi.core.util.config.ConfigReader;
-import org.wso2.siddhi.query.api.annotation.Annotation;
-import org.wso2.siddhi.query.api.definition.Attribute;
-import org.wso2.siddhi.query.api.definition.TableDefinition;
-import org.wso2.siddhi.query.api.util.AnnotationHelper;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -68,10 +68,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import static io.siddhi.core.util.SiddhiConstants.ANNOTATION_STORE;
 import static org.wso2.extension.siddhi.store.hbase.util.HBaseEventTableConstants.ANNOTATION_ELEMENT_CF_NAME;
 import static org.wso2.extension.siddhi.store.hbase.util.HBaseEventTableConstants.ANNOTATION_ELEMENT_TABLE_NAME;
 import static org.wso2.extension.siddhi.store.hbase.util.HBaseEventTableConstants.DEFAULT_CF_NAME;
-import static org.wso2.siddhi.core.util.SiddhiConstants.ANNOTATION_STORE;
 
 /**
  * Class representing the HBase Event Table implementation.
