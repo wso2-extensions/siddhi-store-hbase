@@ -1,0 +1,14 @@
+{
+    "name": "hbase",
+    "owner": "wso2",
+    "category": "Siddhi Store",
+    "documentationUrl": "https://wso2-extensions.github.io/siddhi-store-hbase/",
+    "description": "The siddhi-store-hbase extension is an extension to Siddhi that can be used to persist events to an HBase instance of the users choice. ",
+    "status": "Active",
+    "labels": [
+        "hbase",
+        "siddhi-store",
+        "siddhi"
+    ],
+    "releases": []
+}
