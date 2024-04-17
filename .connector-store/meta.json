@@ -10,5 +10,10 @@
         "siddhi-store",
         "siddhi"
     ],
-    "releases": []
+    "releases": [
+        {
+            "tagName": "4.1.1",
+            "products": []
+        }
+    ]
 }
